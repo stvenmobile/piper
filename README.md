@@ -73,18 +73,20 @@ The project distributes workloads across three hardware nodes, separating physic
 |                  Quantum PC (NVIDIA RTX 5070)                   |
 |               (Hosts heavy-parameter local LLM)                 |
 +-----------------------------------------------------------------+
-Audio Capture: pi5_body captures user speech via the FusionHat mic array and streams raw audio chunks to jetson_nx_mind over a persistent, bidirectional gRPC stream.
+```
 
-Transcription & Cognition: jetson_nx_mind processes the stream via hardware-accelerated Faster-Whisper. The transcribed text is evaluated against the local agentic planning state.
+* Audio Capture: pi5_body captures user speech via the FusionHat mic array and streams raw audio chunks to jetson_nx_mind over a persistent, bidirectional gRPC stream.
 
-Inference: The text prompt is dispatched to the Quantum PC via gRPC. The RTX 5070 processes the tokens and streams the text response back immediately.
+* Transcription & Cognition: jetson_nx_mind processes the stream via hardware-accelerated Faster-Whisper. The transcribed text is evaluated against the local agentic planning state.
 
-Vocalization: As text tokens stream into jetson_nx_mind, they are instantly fed into the local accelerated TTS engine (Piper or Kokoro-82M).
+* Inference: The text prompt is dispatched to the Quantum PC via gRPC. The RTX 5070 processes the tokens and streams the text response back immediately.
 
-Playback Execution: The resulting audio buffers are streamed back down the gRPC connection to pi5_body for real-time, low-latency execution through the FusionHat amplifier.
+* Vocalization: As text tokens stream into jetson_nx_mind, they are instantly fed into the local accelerated TTS engine (Piper or Kokoro-82M).
 
-Repository Structure
-Plaintext
+* Playback Execution: The resulting audio buffers are streamed back down the gRPC connection to pi5_body for real-time, low-latency execution through the FusionHat amplifier.
+
+## Repository Structure
+```
 ├── open_code_config/     # OpenCode development environments & deployment configurations
 ├── pi5_body/             # Runs on Raspberry Pi 5
 │   ├── proto/            # Compiled gRPC stubs
@@ -101,21 +103,21 @@ Plaintext
 │   │   └── gateway.py    # Main gRPC Server handling pi5_body and Central Compute
 │   └── models/           # Local ONNX/TensorRT models (Whisper/Kokoro)
 └── README.md
-Development Tier: OpenCode Integration
+```
+
+## Development Tier: OpenCode Integration
 To effectively scale the Piper Project without fragile code injection or excessive manual cut-and-paste overhead, OpenCode is deployed directly on the jetson_nx_mind tier.
 
 Roles of the OpenCode Layer
-Central Workspace Management: Direct programmatic orchestration of compilation, testing, and synchronization tasks across both the Mind and Body tiers.
+* Central Workspace Management: Direct programmatic orchestration of compilation, testing, and synchronization tasks across both the Mind and Body tiers.
+* Automated Code Compilation: Manages the compilation of .proto definition files into identical Python gRPC stubs for both nodes simultaneously.
+* Incremental Testing: Executes local integration tests to guarantee that changes to code modules do not introduce latency spikes or transport protocol breakages.
 
-Automated Code Compilation: Manages the compilation of .proto definition files into identical Python gRPC stubs for both nodes simultaneously.
-
-Incremental Testing: Executes local integration tests to guarantee that changes to code modules do not introduce latency spikes or transport protocol breakages.
-
-Code Standards: History & Versioning
+## Code Standards: History & Versioning
 Every program, script, and component within this repository must include a standardized file header tracking versioning, changes, and release notes. This maintains absolute transparency as the software footprint scales.
 
-Standard Header Format
-Python
+### Standard Header Format
+```Python
 # ==============================================================================
 # Component:  jetson_nx_mind / pi5_body
 # Module:     [Filename / Module Name]
@@ -127,5 +129,5 @@ Python
 # ----------  --------  --------  ----------------------------------------------
 # 2026-05-17  1.0.0     Steve     Initial module architectural definition.
 # ==============================================================================
-
+```
 ---
