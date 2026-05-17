@@ -1,0 +1,24 @@
+{
+  "project": "piper",
+  "workspace": {
+    "root": "~/piper",
+    "tiers": [
+      "pi5_body",
+      "jetson_nx_mind",
+      "open_code_config"
+    ]
+  },
+  "agents": {
+    "build": {
+      "tools": {
+        "bash": true,
+        "file_edits": true
+      }
+    },
+    "plan": {
+      "tools": {
+        "file_edits": false
+      }
+    }
+  }
+}
