@@ -176,3 +176,66 @@ To ensure the physical reflexes remain entirely non-blocking, the Raspberry Pi 5
 * Thread A (Audio Capture Engine): Monitors the SunFounder FusionHat mic array, maintaining a local wake-word trigger loop and forwarding raw PCM chunks upon a verified alert.
 * Thread B (Audio Playback Engine): Decodes incoming binary audio streams sent from the Jetson's TTS engine and writes them directly to the FusionHat speaker amplifier.
 * Thread C (Actuator Control Engine): Listens on a dedicated gRPC event loop for floating-point angular parameters, passing them instantly to the FusionHat hardware I2C/PWM registers to control physical look angles.
+
+## Executive Kernel Core Functions (`core_exec.py`)
+
+The `core_exec.py` module serves as the primary cognitive runtime commander on the `jetson_nx_mind` tier. It initializes memory structures, controls thread lifecycle states, and acts as the master decision-making gatekeeper.
+
+### Lifecycle & Memory Management
+* **`__init__()`**
+  Initializes the executive layer kernel. Spawns the master thread-synchronization primitives (`stop_signal` and `task_gate`), instantiates system state tracking variables, and maps local directory anchors.
+* **`init_memory_store()`**
+  Executes low-level file system validation at boot. Ensures that the relative `memory/` directory exists and populates missing base files (`system_dna.json`, `journal.json`, `task_progress.json`) to guarantee structural disk read/writes during execution.
+* **`append_journal(context, message)`**
+  A thread-safe logging interface that injects timestamped, contextual ledger entries into the persistent JSON historical record, ensuring Piper maintains a traceable chronological memory of its experiences.
+
+### Subordinate Thread Worker Loops
+* **`_visual_worker()`**
+  Drives the local USB 3.0 V4L2 camera capture stream. Orchestrates the local `VisionEngine` face-detection loops, updates global user tracking parameters, and routes rapid spatial data adjustments.
+* **`_listening_worker()`**
+  Manages the network-facing gRPC ingestion pipes. Monitors incoming audio frame packets streamed from the `pi5_body` and coordinates transcription payloads with the central text generation loops.
+* **`_offline_task_worker()`**
+  The workspace engine for standalone autonomous operations. It runs background operations, handles long-term planning routines, and monitors task progress while Piper is alone. This loop is tightly governed by the executive thread gate to ensure zero CPU overhead when a user is present.
+
+### State Orchestration & Control
+* **`evaluate_state_transitions()`**
+  The core state-machine engine. It continuously evaluates environment variables (e.g., human presence) and manipulates the thread synchronization gates. It instantly clears the execution gate to suspend offline processing when a face is verified, or opens the gate to resume autonomous thinking when the room empties.
+* **`startup()`**
+  The system entry method. Commits the boot log to the journal, instantiates the background thread pool as isolated daemon processes, establishes initial thread gates, and begins the main supervisor execution loop.
+* **`shutdown()`**
+  An orderly termination sequence. Signals all asynchronous loops to stop, bypasses blocking thread gates safely, flushes pending data buffers to disk, and gracefully brings the cognitive layers offline.
+
+### Executive Logic - Additional Notes
+
+[State: ALONE] ---> (Visual Thread sees Steve) 
+                         |
+                         v
+            Is Absence Delta > 5 Mins?
+               /                  \
+            (Yes)                 (No)
+             /                      \
+            v                        v
+    [State: ENGAGED]         [State: CONVERSING]
+  1. Speak Greeting           1. Silent Tracking Resumed
+  2. Open 5s Mic Window       2. Await standard Wake Word
+  3. Evaluate Command
+
+
+The Three Operational Intent Commands
+Once the microphone is open during that engagement window, core_exec.py will parse intent into one of three buckets:
+
+* Intent A: Status Update ("What are you doing?" / "Update")
+The executive reads task_progress.json and compiles a concise narrative: "I am currently 40% through your journal vectorization, and I noted a system drop on node Quantum at 14:00."
+
+* Intent B: New Directive ("Help me with..." / "New task")
+Piper pauses background tasks entirely, hands total focus over to the local LLM connection on the Quantum PC, and opens a continuous, multi-turn conversational loop.
+
+* Intent C: Dismissal ("Go back to work" / "Clear")
+Piper acknowledges: "Understood, returning to background operations." The state snaps right back to ALONE, and the Offline Task Thread is instantly un-paused to resume its goals.
+
+###  Handling Unknown Faces (The "Guest" Placeholder)
+To maintain an elegant fallback behavior without implementing a complex face-enrollment pipeline during the early phases, un-indexed faces are automatically handled via a generic visitor protocol:
+* **Profile Assignment:** If `identity.py` returns `"Unknown"`, the identity defaults to `"Guest"`.
+* **State Transition:** The Process Thread shifts into a modified `ENGAGED_GUEST` state.
+* **Placeholder Action:** Piper skips customized historical memory analysis and speaks a generic welcoming placeholder line: *"Hello. I don't recognize you yet, but I am Piper. Steve should return shortly."*
+* **Operational Control:** After the placeholder greeting, the open-mic window is bypassed. Piper returns to standard passive listening (waiting for a wake word) or safely resumes background tasks if the guest leaves.

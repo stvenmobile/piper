@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package piper;
+
+// Master communication interface hosted by the jetson_nx_mind server
+service PiperCommsService {
+  
+  // Bidirectional audio session. The Pi streams microphone data up, 
+  // while the Jetson streams synthesized TTS audio back down simultaneously.
+  rpc EstablishVoiceSession(stream AudioFrame) returns (stream AudioFrame);
+  
+  // Unary channel used by the Pi to instantly signal hardware events (like a wake word)
+  // or by the Jetson to toggle hardware states (like turning on/off the display)
+  rpc SignalStateChange(StatePacket) returns (StateResponse);
+}
+
+// Structured binary representation of raw audio data
+message AudioFrame {
+  bytes audio_bytes = 1;     // Raw PCM audio chunk arrays
+  int32 sample_rate = 2;    // Target frequency (e.g., 16000 Hz for Whisper/Piper)
+  int32 channels = 3;       // Audio channels (1 = Mono, 2 = Stereo)
+  int64 chunk_id = 4;       // Sequential ID for tracking frame dropouts
+}
+
+// Light structural packets for passing state alerts across the network
+message StatePacket {
+  string event_type = 1;    // e.g., "WAKE_WORD_TRIGGERED", "MIC_MUTED", "SLEEP_MODE"
+  string payload = 2;       // Optional meta-strings or JSON strings
+  int64 timestamp = 3;      // Unix millisecond timestamp
+}
+
+message StateResponse {
+  bool accepted = 1;        // High-level success confirmation
+  string message = 2;       // Accompanying system logs or details
+}
