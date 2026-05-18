@@ -1,0 +1,4 @@
+grpcio==1.62.0
+grpcio-tools==1.62.0
+pyaudio==0.2.14
+pyserial==3.5
