@@ -150,7 +150,7 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
       - Servo Tracking  - Piper/Kokoro TTS
 ```
 
-##The Process Thread (main.py Executive Core)
+## The Process Thread (main.py Executive Core)
 This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
 1. State Machine
 * STATE: ALONE (Proactive Processing): When no humans are detected, the thread executes internal goals, handles memory database curation, or runs low-priority background planning tasks.
