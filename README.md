@@ -151,25 +151,26 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
 ```
 
 ## The Process Thread (main.py Executive Core)
-1. State Machine thread (motivation). This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
+### 1. State Machine thread (motivation). 
+This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
 
 * STATE: ALONE (Proactive Processing): When no humans are detected, the thread executes internal goals, handles memory database curation, or runs low-priority background planning tasks.
 * STATE: PERCEIVING (Identification): Triggered when the Visual Thread detects a human presence. The Process Thread temporarily pauses background tasks and waits for the identity verification layer.
 * STATE: ENGAGED (Proactive Summary): When a recognized user (e.g., Steve) is identified, the thread checks its historical memory, calculates elapsed time since the last interaction, and actively initiates a vocal summary of standalone activities.
 * STATE: CONVERSING (Reactive Interaction): Minimizes internal task overhead to focus entirely on the low-latency text-to-speech loop between the local gRPC streams and the Quantum PC.
 
-2. The Visual Thread (Onboard Jetson NX)
+### 2. The Visual Thread (Onboard Jetson NX)
 * Hardware Connection: The Logitech webcam connects directly to a native USB 3.0 port on the Jetson Orin NX, utilizing direct V4L2 hardware capture buffers.
 * Execution: Runs a continuous frame-capture loop directly into Jetson GPU memory. It applies localized image enhancements (CLAHE contrast normalizer and Unsharp masking) before running YOLOv8 face tracking.
 * Reflex Control: When a face is actively tracked, this thread skips the master process queue and streams high-frequency servo angle floats (pan, tilt) down the local gRPC line to the Pi 5 to maintain zero-latency physical alignment.
 
-3. The Listening & Comms Thread (gRPC Gateway)
+### 3. The Listening & Comms Thread (gRPC Gateway)
 Manages the persistent HTTP/2 gRPC channels connecting the Mind to the Body and the Central Compute tiers, enforcing strict stream gating:
 
 * Wake Word Gate: The Raspberry Pi 5 runs a localized, low-overhead wake word listener. When triggered, it fires a lightweight event upstream. The Jetson opens the gRPC audio capture gate and instantly streams raw audio into its accelerated Faster-Whisper STT pipeline.
 * Vocal Muting Gate: When the Process Thread pushes a textual response to the local TTS engine (Piper/Kokoro-82M), this thread activates a synchronization flag across the communication link to mute the Pi 5’s mic stream, preventing Piper from processing its own vocalizations.
 
-4. The Body Hardware Proxy Daemon (pi5_body)
+### 4. The Body Hardware Proxy Daemon (pi5_body)
 To ensure the physical reflexes remain entirely non-blocking, the Raspberry Pi 5 is stripped of high-level state logic. It operates a streamlined multi-threaded proxy server (body_server.py) handling three concurrent real-time tasks:
 
 * Thread A (Audio Capture Engine): Monitors the SunFounder FusionHat mic array, maintaining a local wake-word trigger loop and forwarding raw PCM chunks upon a verified alert.
