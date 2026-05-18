@@ -1,0 +1,34 @@
+# ==============================================================================
+# Project Piper Master Git Ignore Pattern
+# ==============================================================================
+
+# Virtual Environments (Local Node Environments)
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache & Compiled Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local Operating System Artifacts
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor Configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Runtime Logs and Temporary Buffers
+*.log
+jetson_nx_mind/memory/journal.json
+jetson_nx_mind/memory/task_progress.json
