@@ -151,8 +151,8 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
 ```
 
 ## The Process Thread (main.py Executive Core)
-This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
-1. State Machine
+1. State Machine thread (motivation). This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
+
 * STATE: ALONE (Proactive Processing): When no humans are detected, the thread executes internal goals, handles memory database curation, or runs low-priority background planning tasks.
 * STATE: PERCEIVING (Identification): Triggered when the Visual Thread detects a human presence. The Process Thread temporarily pauses background tasks and waits for the identity verification layer.
 * STATE: ENGAGED (Proactive Summary): When a recognized user (e.g., Steve) is identified, the thread checks its historical memory, calculates elapsed time since the last interaction, and actively initiates a vocal summary of standalone activities.
