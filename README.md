@@ -89,6 +89,8 @@ The project distributes workloads across three hardware nodes, separating physic
 * Playback Execution: The resulting audio buffers are streamed back down the gRPC connection to pi5_body for real-time, low-latency execution through the FusionHat amplifier.
 
 ```markdown
+```
+---
 ## Repository Structure
 
 ├── open_code_config/     # OpenCode development environments & deployment configurations
@@ -107,7 +109,7 @@ The project distributes workloads across three hardware nodes, separating physic
 │   │   └── gateway.py    # Main gRPC Server handling pi5_body and Central Compute
 │   └── models/           # Local ONNX/TensorRT models (Whisper/Kokoro)
 └── README.md
-```
+
 ```markdown
 ## Development Tier: OpenCode Integration
 ```
