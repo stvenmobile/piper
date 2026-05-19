@@ -92,7 +92,7 @@ The project distributes workloads across three hardware nodes, separating physic
 ```
 ---
 ## Repository Structure
-
+```text
 ├── open_code_config/     # OpenCode development environments & deployment configurations
 ├── pi5_body/             # Runs on Raspberry Pi 5
 │   ├── proto/            # Compiled gRPC stubs
@@ -109,7 +109,8 @@ The project distributes workloads across three hardware nodes, separating physic
 │   │   └── gateway.py    # Main gRPC Server handling pi5_body and Central Compute
 │   └── models/           # Local ONNX/TensorRT models (Whisper/Kokoro)
 └── README.md
-
+```
+---
 ```markdown
 ## Development Tier: OpenCode Integration
 ```
