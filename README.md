@@ -1,12 +1,15 @@
 # Piper Project: Revamp
 An advanced, low-latency distributed voice and vision assistant leveraging edge AI acceleration, gRPC transport, and a local large language model.
 
+```markdown
 ## Overview
+```
 The Piper Project is an agentic chatbot assistant split across three distinct compute tiers to optimize processing efficiency, eliminate audio latency, and achieve natural-sounding voice interactions. By treating physical I/O and cognitive AI processing as decoupled modules, the system guarantees real-time responsiveness and modular scalability.
 
 ---
-
+```markdown
 ## Core Goals & Performance Targets
+```
 * **Sub-Second Latency:** Total Time-to-First-Audio (TTFA) of under 1.0 second from the moment the user finishes speaking, made possible by HTTP/2 stream multiplexing.
 * **High-Fidelity Audio:** Natural phrasing and intonation by offloading TTS generation entirely to the Jetson Orin NX GPU, completely unburdening the Pi 5 CPU.
 * **Architecture Cleanliness:** Compile-time type-safety via gRPC Protocol Buffers, replacing loose JSON or fragile WebSocket structures.
