@@ -128,7 +128,9 @@ Roles of the OpenCode Layer
 ```
 Every program, script, and component within this repository must include a standardized file header tracking versioning, changes, and release notes. This maintains absolute transparency as the software footprint scales.
 
+```markdown
 ### Standard Header Format
+```
 ```Python
 # ==============================================================================
 # Component:  jetson_nx_mind / pi5_body
@@ -166,7 +168,9 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
 ```markdown
 ## The Process Thread (main.py Executive Core)
 ```
+```markdown
 ### 1. State Machine thread (motivation). 
+```
 This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
 
 * STATE: ALONE (Proactive Processing): When no humans are detected, the thread executes internal goals, handles memory database curation, or runs low-priority background planning tasks.
@@ -174,18 +178,24 @@ This is the primary thread managing Piper’s cognitive state machine, goals, an
 * STATE: ENGAGED (Proactive Summary): When a recognized user (e.g., Steve) is identified, the thread checks its historical memory, calculates elapsed time since the last interaction, and actively initiates a vocal summary of standalone activities.
 * STATE: CONVERSING (Reactive Interaction): Minimizes internal task overhead to focus entirely on the low-latency text-to-speech loop between the local gRPC streams and the Quantum PC.
 
+```markdown
 ### 2. The Visual Thread (Onboard Jetson NX)
+```
 * Hardware Connection: The Logitech webcam connects directly to a native USB 3.0 port on the Jetson Orin NX, utilizing direct V4L2 hardware capture buffers.
 * Execution: Runs a continuous frame-capture loop directly into Jetson GPU memory. It applies localized image enhancements (CLAHE contrast normalizer and Unsharp masking) before running YOLOv8 face tracking.
 * Reflex Control: When a face is actively tracked, this thread skips the master process queue and streams high-frequency servo angle floats (pan, tilt) down the local gRPC line to the Pi 5 to maintain zero-latency physical alignment.
 
+```markdown
 ### 3. The Listening & Comms Thread (gRPC Gateway)
+```
 Manages the persistent HTTP/2 gRPC channels connecting the Mind to the Body and the Central Compute tiers, enforcing strict stream gating:
 
 * Wake Word Gate: The Raspberry Pi 5 runs a localized, low-overhead wake word listener. When triggered, it fires a lightweight event upstream. The Jetson opens the gRPC audio capture gate and instantly streams raw audio into its accelerated Faster-Whisper STT pipeline.
 * Vocal Muting Gate: When the Process Thread pushes a textual response to the local TTS engine (Piper/Kokoro-82M), this thread activates a synchronization flag across the communication link to mute the Pi 5’s mic stream, preventing Piper from processing its own vocalizations.
 
+```markdown
 ### 4. The Body Hardware Proxy Daemon (pi5_body)
+```
 To ensure the physical reflexes remain entirely non-blocking, the Raspberry Pi 5 is stripped of high-level state logic. It operates a streamlined multi-threaded proxy server (body_server.py) handling three concurrent real-time tasks:
 
 * Thread A (Audio Capture Engine): Monitors the SunFounder FusionHat mic array, maintaining a local wake-word trigger loop and forwarding raw PCM chunks upon a verified alert.
@@ -199,7 +209,9 @@ To ensure the physical reflexes remain entirely non-blocking, the Raspberry Pi 5
 ```
 The `core_exec.py` module serves as the primary cognitive runtime commander on the `jetson_nx_mind` tier. It initializes memory structures, controls thread lifecycle states, and acts as the master decision-making gatekeeper.
 
+```markdown
 ### Lifecycle & Memory Management
+```
 * **`__init__()`**
   Initializes the executive layer kernel. Spawns the master thread-synchronization primitives (`stop_signal` and `task_gate`), instantiates system state tracking variables, and maps local directory anchors.
 * **`init_memory_store()`**
@@ -207,7 +219,9 @@ The `core_exec.py` module serves as the primary cognitive runtime commander on t
 * **`append_journal(context, message)`**
   A thread-safe logging interface that injects timestamped, contextual ledger entries into the persistent JSON historical record, ensuring Piper maintains a traceable chronological memory of its experiences.
 
+```markdown
 ### Subordinate Thread Worker Loops
+```
 * **`_visual_worker()`**
   Drives the local USB 3.0 V4L2 camera capture stream. Orchestrates the local `VisionEngine` face-detection loops, updates global user tracking parameters, and routes rapid spatial data adjustments.
 * **`_listening_worker()`**
@@ -215,7 +229,9 @@ The `core_exec.py` module serves as the primary cognitive runtime commander on t
 * **`_offline_task_worker()`**
   The workspace engine for standalone autonomous operations. It runs background operations, handles long-term planning routines, and monitors task progress while Piper is alone. This loop is tightly governed by the executive thread gate to ensure zero CPU overhead when a user is present.
 
+```markdown
 ### State Orchestration & Control
+```
 * **`evaluate_state_transitions()`**
   The core state-machine engine. It continuously evaluates environment variables (e.g., human presence) and manipulates the thread synchronization gates. It instantly clears the execution gate to suspend offline processing when a face is verified, or opens the gate to resume autonomous thinking when the room empties.
 * **`startup()`**
@@ -228,6 +244,7 @@ The `core_exec.py` module serves as the primary cognitive runtime commander on t
 ```markdown
 ## Executive Logic - Additional Notes
 ```
+```text
 [State: ALONE] ---> (Visual Thread sees Steve) 
                          |
                          v
@@ -240,9 +257,11 @@ The `core_exec.py` module serves as the primary cognitive runtime commander on t
   1. Speak Greeting           1. Silent Tracking Resumed
   2. Open 5s Mic Window       2. Await standard Wake Word
   3. Evaluate Command
+```
 
-
-The Three Operational Intent Commands
+```markdown
+### The Three Operational Intent Commands
+```
 Once the microphone is open during that engagement window, core_exec.py will parse intent into one of three buckets:
 
 * Intent A: Status Update ("What are you doing?" / "Update")
@@ -254,7 +273,9 @@ Piper pauses background tasks entirely, hands total focus over to the local LLM 
 * Intent C: Dismissal ("Go back to work" / "Clear")
 Piper acknowledges: "Understood, returning to background operations." The state snaps right back to ALONE, and the Offline Task Thread is instantly un-paused to resume its goals.
 
+```markdown
 ###  Handling Unknown Faces (The "Guest" Placeholder)
+```
 To maintain an elegant fallback behavior without implementing a complex face-enrollment pipeline during the early phases, un-indexed faces are automatically handled via a generic visitor protocol:
 * **Profile Assignment:** If `identity.py` returns `"Unknown"`, the identity defaults to `"Guest"`.
 * **State Transition:** The Process Thread shifts into a modified `ENGAGED_GUEST` state.
