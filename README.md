@@ -16,9 +16,9 @@ The Piper Project is an agentic chatbot assistant split across three distinct co
 * **Modular Design:** Clear separation of concerns allowing individual hardware tiers to be updated, scaled, or replaced without breaking the pipeline.
 
 ---
-
+```markdown
 ## Roadmap & Development Phases
-
+```
 * **Step 0: Architectural Design Planning (CURRENT PHASE)**
     * Establish system topology, device roles, data contracts, and directory mapping.
 * **Step 1: OpenCode Environment Setup**
@@ -29,9 +29,9 @@ The Piper Project is an agentic chatbot assistant split across three distinct co
     * Build out `pi5_body` I/O routines and `jetson_nx_mind` orchestration services.
 
 ---
-
+```markdown
 ## System Architecture
-
+```
 The project distributes workloads across three hardware nodes, separating physical execution from cognitive processing:
 
 | Tier | Component Name | Hardware | Core Functional Role | Primary Software Stack |
@@ -41,9 +41,9 @@ The project distributes workloads across three hardware nodes, separating physic
 | **3. The Brain** | Central Compute | Quantum PC <br> NVIDIA RTX 5070 GPU | **Deep Inference:** High-parameter local LLM execution. | Ollama / vLLM, Llama-3 / Mistral |
 
 ---
-
+```markdown
 ## Data & Communication Flow
-
+```
 ```text
 +-----------------------------------------------------------------+
 |                           pi5_body                              |
@@ -88,8 +88,9 @@ The project distributes workloads across three hardware nodes, separating physic
 
 * Playback Execution: The resulting audio buffers are streamed back down the gRPC connection to pi5_body for real-time, low-latency execution through the FusionHat amplifier.
 
+```markdown
 ## Repository Structure
-```
+
 ├── open_code_config/     # OpenCode development environments & deployment configurations
 ├── pi5_body/             # Runs on Raspberry Pi 5
 │   ├── proto/            # Compiled gRPC stubs
@@ -107,8 +108,9 @@ The project distributes workloads across three hardware nodes, separating physic
 │   └── models/           # Local ONNX/TensorRT models (Whisper/Kokoro)
 └── README.md
 ```
-
+```markdown
 ## Development Tier: OpenCode Integration
+```
 To effectively scale the Piper Project without fragile code injection or excessive manual cut-and-paste overhead, OpenCode is deployed directly on the jetson_nx_mind tier.
 
 Roles of the OpenCode Layer
@@ -116,7 +118,9 @@ Roles of the OpenCode Layer
 * Automated Code Compilation: Manages the compilation of .proto definition files into identical Python gRPC stubs for both nodes simultaneously.
 * Incremental Testing: Executes local integration tests to guarantee that changes to code modules do not introduce latency spikes or transport protocol breakages.
 
+```markdown
 ## Code Standards: History & Versioning
+```
 Every program, script, and component within this repository must include a standardized file header tracking versioning, changes, and release notes. This maintains absolute transparency as the software footprint scales.
 
 ### Standard Header Format
@@ -134,8 +138,9 @@ Every program, script, and component within this repository must include a stand
 # ==============================================================================
 ```
 ---
+```markdown
 ## Thread Architecture & Executive Control Model
-
+```
 The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driven by a central orchestrator (`main.py`). This design prevents blocking across high-compute tasks (vision/inference) and raw hardware operations, allowing Piper to maintain an internal state of "motivation," priority management, and long-term memory.
 
 ```text
@@ -153,7 +158,9 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
       - Servo Tracking  - Piper/Kokoro TTS
 ```
 
+```markdown
 ## The Process Thread (main.py Executive Core)
+```
 ### 1. State Machine thread (motivation). 
 This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
 
@@ -180,8 +187,9 @@ To ensure the physical reflexes remain entirely non-blocking, the Raspberry Pi 5
 * Thread B (Audio Playback Engine): Decodes incoming binary audio streams sent from the Jetson's TTS engine and writes them directly to the FusionHat speaker amplifier.
 * Thread C (Actuator Control Engine): Listens on a dedicated gRPC event loop for floating-point angular parameters, passing them instantly to the FusionHat hardware I2C/PWM registers to control physical look angles.
 
+```markdown
 ## Executive Kernel Core Functions (`core_exec.py`)
-
+```
 The `core_exec.py` module serves as the primary cognitive runtime commander on the `jetson_nx_mind` tier. It initializes memory structures, controls thread lifecycle states, and acts as the master decision-making gatekeeper.
 
 ### Lifecycle & Memory Management
