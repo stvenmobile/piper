@@ -225,7 +225,7 @@ The `core_exec.py` module serves as the primary cognitive runtime commander on t
 
 ---
 
-```marrkdown
+```markdown
 ## Executive Logic - Additional Notes
 ```
 [State: ALONE] ---> (Visual Thread sees Steve) 
