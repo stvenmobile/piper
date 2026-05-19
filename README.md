@@ -121,6 +121,8 @@ Roles of the OpenCode Layer
 * Automated Code Compilation: Manages the compilation of .proto definition files into identical Python gRPC stubs for both nodes simultaneously.
 * Incremental Testing: Executes local integration tests to guarantee that changes to code modules do not introduce latency spikes or transport protocol breakages.
 
+---
+
 ```markdown
 ## Code Standards: History & Versioning
 ```
@@ -160,7 +162,7 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
       - YOLOv8 / FaceID - Faster-Whisper STT  - Memory Sync
       - Servo Tracking  - Piper/Kokoro TTS
 ```
-
+---
 ```markdown
 ## The Process Thread (main.py Executive Core)
 ```
@@ -189,6 +191,8 @@ To ensure the physical reflexes remain entirely non-blocking, the Raspberry Pi 5
 * Thread A (Audio Capture Engine): Monitors the SunFounder FusionHat mic array, maintaining a local wake-word trigger loop and forwarding raw PCM chunks upon a verified alert.
 * Thread B (Audio Playback Engine): Decodes incoming binary audio streams sent from the Jetson's TTS engine and writes them directly to the FusionHat speaker amplifier.
 * Thread C (Actuator Control Engine): Listens on a dedicated gRPC event loop for floating-point angular parameters, passing them instantly to the FusionHat hardware I2C/PWM registers to control physical look angles.
+
+---
 
 ```markdown
 ## Executive Kernel Core Functions (`core_exec.py`)
@@ -219,8 +223,11 @@ The `core_exec.py` module serves as the primary cognitive runtime commander on t
 * **`shutdown()`**
   An orderly termination sequence. Signals all asynchronous loops to stop, bypasses blocking thread gates safely, flushes pending data buffers to disk, and gracefully brings the cognitive layers offline.
 
-### Executive Logic - Additional Notes
+---
 
+```marrkdown
+## Executive Logic - Additional Notes
+```
 [State: ALONE] ---> (Visual Thread sees Steve) 
                          |
                          v
