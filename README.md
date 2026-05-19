@@ -1,19 +1,18 @@
 # Piper Project: Revamp
 An advanced, low-latency distributed voice and vision assistant leveraging edge AI acceleration, gRPC transport, and a local large language model.
 
-```markdown
+---
 ## `🔵` Overview
 The Piper Project is an agentic chatbot assistant split across three distinct compute tiers to optimize processing efficiency, eliminate audio latency, and achieve natural-sounding voice interactions. By treating physical I/O and cognitive AI processing as decoupled modules, the system guarantees real-time responsiveness and modular scalability.
-```
 
-```markdown
+---
 ## `🔵` Core Goals & Performance Targets
 * **Sub-Second Latency:** Total Time-to-First-Audio (TTFA) of under 1.0 second from the moment the user finishes speaking, made possible by HTTP/2 stream multiplexing.
 * **High-Fidelity Audio:** Natural phrasing and intonation by offloading TTS generation entirely to the Jetson Orin NX GPU, completely unburdening the Pi 5 CPU.
 * **Architecture Cleanliness:** Compile-time type-safety via gRPC Protocol Buffers, replacing loose JSON or fragile WebSocket structures.
 * **Modular Design:** Clear separation of concerns allowing individual hardware tiers to be updated, scaled, or replaced without breaking the pipeline.
-```
 
+---
 ## `🔵` Roadmap & Development Phases
 
 * **Step 0: Architectural Design Planning (COMPLETE)**
@@ -83,6 +82,7 @@ The project distributes workloads across three hardware nodes, separating physic
 * **Neural Vocalization:** The text response is fed directly into the Jetson's local Piper TTS engine using the en_US-hfc_female-medium ONNX checkpoint.
 * **Low-Latency Execution:** To achieve zero-latency room playback, audio frames are streamed slice-by-slice out of the Jetson’s dedicated local USB audio hardware interface, completely bypassing remote network audio transport overhead.
 
+---
 ## `🔵` Repository Structure
 ```
 ├── jetson_nx_mind/       # Runs on Jetson Orin NX (Managed via OpenCode)
@@ -100,7 +100,7 @@ The project distributes workloads across three hardware nodes, separating physic
 │   ├── journal_queries.md # Chronological markdown conversation log
 │   └── models/           # Local model registries
 ```
-
+---
 ## `🔵` Development Tier: OpenCode Integration
 To effectively scale the Piper Project without fragile code injection or excessive manual cut-and-paste overhead, OpenCode is deployed directly on the jetson_nx_mind tier.
 
@@ -109,6 +109,7 @@ Roles of the OpenCode Layer
 * Automated Code Compilation: Manages the compilation of .proto definition files into identical Python gRPC stubs for both nodes simultaneously.
 * Incremental Testing: Executes local integration tests to guarantee that changes to code modules do not introduce latency spikes or transport protocol breakages.
 
+---
 ## `🔵` Code Standards: History & Versioning
 Every program, script, and component within this repository must include a standardized file header tracking versioning, changes, and release notes. This maintains absolute transparency as the software footprint scales.
 
@@ -126,6 +127,8 @@ Every program, script, and component within this repository must include a stand
 # 2026-05-17  1.0.0     Steve     Initial module architectural definition.
 # ==============================================================================
 ```
+
+---
 ## `🔵` Thread Architecture & Executive Control Model
 
 The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driven by a central orchestrator (`main.py`). This design prevents blocking across high-compute tasks (vision/inference) and raw hardware operations, allowing Piper to maintain an internal state of "motivation," priority management, and long-term memory.
@@ -144,7 +147,7 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
       - YOLOv8 / FaceID - Faster-Whisper STT  - 4-Turn FIFO Memory
       - Servo Tracking  - Local Piper TTS     - journal_queries.md
 ```
-
+---
 ## `🔵` The Process Thread (main.py Executive Core)
 ### 1. State Machine thread (motivation). 
 This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
@@ -166,7 +169,7 @@ Manages the persistent HTTP/2 gRPC channels connecting the Mind to the Body and 
 * Vocal Muting Gate: When the Process Thread pushes a textual response to the local TTS engine (Piper/Kokoro-82M), this thread activates a synchronization flag across the communication link to mute the Pi 5’s mic stream, preventing Piper from processing its own vocalizations.
 
 
-
+---
 ## `🔵` Executive Kernel Core Functions (`core_exec.py`)
 
 The `core_exec.py` module serves as the primary cognitive runtime commander on the `jetson_nx_mind` tier. It initializes memory structures, controls thread lifecycle states, and acts as the master decision-making gatekeeper.
@@ -231,6 +234,7 @@ To expand Piper's relational memory without requiring manual administrative file
 3. **Stream Interception:** The gateway server flags the incoming gRPC stream from the Pi 5. When the user responds, their voice is transcribed by Faster-Whisper, and the resulting string is intercepted directly by the visual thread to act as the user's name payload.
 4. **Permanent Disk Commitment:** The visual thread associates the name string with the cached image array, writes the profile `.jpg` to the models directory, appends the event to `journal.json`, and updates her neural voice greetings for all future interactions.
 
+---
 ## `🔵` Module Initialization Sequence
 ```
 [ STEP 1 ]               [ STEP 2 ]               [ STEP 3 ]               [ STEP 4 ]
