@@ -32,3 +32,9 @@ Thumbs.db
 *.log
 jetson_nx_mind/memory/journal.json
 jetson_nx_mind/memory/task_progress.json
+
+# Local hardware configurations and credentials
+jetson_nx_mind/.env
+
+# Heavy neural voice model weights
+jetson_nx_mind/voices/

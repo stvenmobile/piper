@@ -1,153 +1,241 @@
 # ==============================================================================
 # Component:  jetson_nx_mind
 # Module:     core_exec.py
-# Version:    1.0.0 (Executive Orchestration Engine)
-# Purpose:    Central life-cycle controller managing subordinate threads, localized
-#             json memory stores, and state-gated background task execution.
-#
-# Change History / Release Notes:
-# Date        Version   Author    Description of Changes
-# ----------  --------  --------  ----------------------------------------------
-# 2026-05-18  1.0.0     Steve     Initial core executive framework design with
-#                                 thread-pausing gates and state architecture.
+# Version:    1.0.0 (Executive Control Model & Thread Orchestrator)
+# Purpose:    Acts as the main cognitive runtime commander. Coordinates the 
+#             asynchronous visual worker, listening pipes, and state gates.
+#             Enforces dual-eye verification rules for unknown user registration.
 # ==============================================================================
 
-import threading
+import os
+import sys
 import time
 import json
-import os
+import cv2
+import threading
 from datetime import datetime
 
-class CoreExecutive:
-    def __init__(self):
-        print("[EXEC] Awakening Core Executive Layer...")
-        self.memory_dir = "../memory"
-        
-        # Thread Synchronization Controls
+# Import our visualization substrate
+from vision import VisionEngine
+
+class ExecutiveKernel:
+    def __init__(self, gateway_instance=None):
+        """Initializes the executive layer kernel and thread-synchronization primitives."""
         self.stop_signal = threading.Event()
-        self.task_gate = threading.Event()  # Internal Gate: Cleared = Paused, Set = Running
+        self.task_gate = threading.Event()
+        self.gateway = gateway_instance
         
-        # System State
-        self.current_state = "ALONE"
-        self.user_present = False
+        # Core State Variables
+        self.current_state = "ALONE"  # ALONE, PERCEIVING, ENGAGED, CONVERSING
+        self.active_user = None
+        self.lock = threading.Lock()
         
-        # Initialize Memory Databases
+        # Path Anchors
+        self.base_dir = os.path.expanduser("~/piper/jetson_nx_mind")
+        self.memory_dir = os.path.join(self.base_dir, "memory")
+        self.journal_path = os.path.join(self.memory_dir, "journal.json")
+        
+        # Initialize file tracking structures
         self.init_memory_store()
+        
+        # Thread Registry
+        self.threads = {}
 
     def init_memory_store(self):
-        """Guarantees that memory assets exist on disk before launching loops."""
-        os.makedirs(self.memory_dir, exist_ok=True)
-        paths = {
-            "dna": f"{self.memory_dir}/system_dna.json",
-            "journal": f"{self.memory_dir}/journal.json",
-            "tasks": f"{self.memory_dir}/task_progress.json"
-        }
-        
-        for name, path in paths.items():
-            if not os.path.exists(path):
-                with open(path, "w") as f:
-                    json.dump({"info": f"Initial {name} state created."}, f, indent=2)
-                print(f"[EXEC] Created missing memory file: {path}")
+        """Executes low-level file system validation at boot."""
+        try:
+            os.makedirs(self.memory_dir, exist_ok=True)
+            
+            # Ensure base journal file exists structurally
+            if not os.path.exists(self.journal_path):
+                with open(self.journal_path, "w") as f:
+                    json.dump({"boot_records": [], "interactions": []}, f, indent=4)
+                    
+            # Set up default placeholder configuration structures if missing
+            dna_path = os.path.join(self.memory_dir, "system_dna.json")
+            if not os.path.exists(dna_path):
+                with open(dna_path, "w") as f:
+                    json.dump({"name": "Piper", "version": "3.3.0", "creator": "Steve"}, f, indent=4)
+                    
+            task_path = os.path.join(self.memory_dir, "task_progress.json")
+            if not os.path.exists(task_path):
+                with open(task_path, "w") as f:
+                    json.dump({"current_tasks": [], "completed_tasks": []}, f, indent=4)
+                    
+        except Exception as e:
+            print(f"[EXECUTIVE] Memory store directory mapping fault: {e}")
 
     def append_journal(self, context, message):
-        """Writes a strict, timestamped entry into the historical record."""
-        path = f"{self.memory_dir}/journal.json"
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        entry = {"timestamp": timestamp, "context": context, "entry": message}
-        
-        try:
-            data = []
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    try:
-                        data = json.load(f)
-                        if not isinstance(data, list): data = []
-                    except json.JSONDecodeError:
-                        data = []
-            
-            data.append(entry)
-            with open(path, "w") as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            print(f"[EXEC] ERROR: Failed to write journal: {e}")
+        """Thread-safe logging interface that injects entries into persistent JSON storage."""
+        with self.lock:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                with open(self.journal_path, "r") as f:
+                    data = json.load(f)
+                
+                entry = {"timestamp": timestamp, "context": context, "message": message}
+                data["interactions"].append(entry)
+                
+                with open(self.journal_path, "w") as f:
+                    json.dump(data, f, indent=4)
+            except Exception as e:
+                print(f"[EXECUTIVE] Journal logging write hazard: {e}")
 
-    # Subordinate Worker Threads
+    def evaluate_state_transitions(self, target_state, user_identity=None):
+        """Manages the centralized state machine transitions and thread gates."""
+        if target_state == self.current_state and user_identity == self.active_user:
+            return
+
+        print(f"[STATE] Transitioning from {self.current_state} -> {target_state} (User: {user_identity})")
+        self.current_state = target_state
+        self.active_user = user_identity
+
+        if target_state in ["ENGAGED", "CONVERSING", "PERCEIVING"]:
+            # Suspend background tasks instantly when a human presence is being evaluated
+            self.task_gate.clear()
+        else:
+            # Re-open background execution threads when the space is empty
+            self.task_gate.set()
+
     def _visual_worker(self):
-        """Thread 1: Native vision capture, tracking loop, and identification."""
-        print("[THREAD] Visual Engine Thread Online.")
+        """Drives local V4L2 video stream analysis and handles facial enrollment pipelines."""
+        print("[EXECUTIVE] Spawning asynchronous visual tracking worker loop...")
+        
+        # Initialize native USB 3.0 hardware camera interface
+        cap = cv2.VideoCapture(0)
+        vision = VisionEngine()
+        
+        # Enrollment Lifecycle Primitives
+        awaiting_name_string = False
+        captured_roi = None
+        
         while not self.stop_signal.is_set():
-            # Mocking perception logic for architecture test
-            # In production, this pulls from perception.py and updates self.user_present
-            time.sleep(1.0)
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.03)
+                continue
+
+            # Ingest image frame metrics array
+            state, identity, metrics = vision.analyze_frame(frame)
+            
+            # --- STATE MANAGEMENT EVALUATION INTERFACE ---
+            if state == "ALONE":
+                if self.current_state != "ALONE" and not awaiting_name_string:
+                    self.evaluate_state_transitions("ALONE", None)
+                    print("[EXECUTIVE] Room vacancy discovered. Returning look-angles to true zero.")
+                    # Future action: self.gateway.send_servo_center_cmd()
+                    
+            elif state == "ENGAGED":
+                if self.current_state == "ALONE":
+                    self.evaluate_state_transitions("ENGAGED", identity)
+                    print(f"[EXECUTIVE] Biometric match confirmed: Welcoming {identity}.")
+                    self.append_journal("FACIAL_RECOGNITION", f"Verified user {identity} entered frame matrix.")
+                    
+                    # Direct vocal notification loop interaction pass
+                    if self.gateway:
+                        greeting = f"Welcome back, {identity}. Spatial tracking metrics locked."
+                        self.gateway.stream_vocalize_text(greeting)
+                        
+            elif state == "PERCEIVING_UNKNOWN":
+                if self.current_state == "ALONE" and not awaiting_name_string:
+                    # An un-indexed face has stepped into frame range
+                    self.evaluate_state_transitions("PERCEIVING", "Unknown")
+                    
+                    # Enforce dual-eye horizontal capture requirement and target pixel centering balance
+                    if metrics["both_eyes_visible"] and metrics["is_centered"]:
+                        print("[EXECUTIVE] Optimal frontal alignment acquired. Triggering vocal prompt sequence...")
+                        
+                        if self.gateway:
+                            # 1. Capture and isolate the valid facial bounding box array in memory
+                            captured_roi = metrics["roi"]
+                            awaiting_name_string = True
+                            
+                            # 2. Instruct the physical chassis speaker to inquire for verification
+                            self.gateway.stream_vocalize_text("Hello. I do not recognize your profile footprint yet. What is your name?")
+                            
+                            # 3. Intercept next text string returning from the incoming gRPC Whisper loop
+                            # NOTE: This hook relies on your gateway setting up a short block read-pipe.
+                            print("[EXECUTIVE] Listening for name transcription string...")
+                            
+                            # Placeholder fallback until dynamic gateway read-pipe function is exposed:
+                            # name_payload = self.gateway.await_next_whisper_string(timeout=8)
+                            time.sleep(4) # Simulating voice pipeline acquisition window delay
+                            name_payload = "Guest_Steve_Peer" # Example simulated catch string
+                            
+                            if name_payload:
+                                # Commits the frontal snapshot safely out to local disk models folder
+                                saved_file = vision.save_new_face(name_payload, captured_roi)
+                                self.append_journal("USER_ENROLLMENT", f"Registered profile identity '{name_payload}' via file {saved_file}")
+                                self.gateway.stream_vocalize_text(f"Understood. Biometric parameters saved. Nice to meet you, {name_payload}.")
+                            else:
+                                self.gateway.stream_vocalize_text("Registration window timed out. Profile discarded.")
+                                
+                            awaiting_name_string = False
+                            captured_roi = None
+
+            # Enforce execution thread yielding pacing
+            time.sleep(0.01)
+            
+        cap.release()
+        print("[EXECUTIVE] Visual worker lifecycle loop brought down safely.")
 
     def _listening_worker(self):
-        """Thread 2: gRPC audio ingestion and automated wake-word detection."""
-        print("[THREAD] Listening/Comms Thread Online.")
+        """Monitors network-facing gRPC pipelines and logs interaction metrics."""
+        print("[EXECUTIVE] Spawning network gRPC listening monitor loop...")
         while not self.stop_signal.is_set():
+            # If the audio pipeline shifts into heavy active stream iteration, track state
+            if self.gateway and hasattr(self.gateway, 'is_streaming') and self.gateway.is_streaming:
+                if self.current_state != "CONVERSING":
+                    self.evaluate_state_transitions("CONVERSING", self.active_user)
             time.sleep(0.5)
 
     def _offline_task_worker(self):
-        """Thread 3: Autonomous planning and background maintenance loop."""
-        print("[THREAD] Offline Task Manager Thread Online.")
+        """Executes lower priority standalone tasks when the environment space is clear."""
+        print("[EXECUTIVE] Spawning autonomous background task supervisor loop...")
         while not self.stop_signal.is_set():
-            # This gate blocks execution natively without wasting CPU polling cycles
+            # This thread blocks passively here until the gate is set to True (State: ALONE)
             self.task_gate.wait()
             
-            print("[OFFLINE-TASK] Executing internal goals, organizing databases...")
-            self.append_journal("OFFLINE", "Executed periodic database memory defragmentation.")
-            time.sleep(5.0)  # Simulated task step duration
-
-    # State Machine Engine
-    def evaluate_state_transitions(self):
-        """Evaluates sensory variables and updates operational gates."""
-        if self.user_present and self.current_state == "ALONE":
-            # Pivot from background thinking to active focus
-            print("[EXEC] Transitioning from ALONE to PERCEIVING/ENGAGED.")
-            self.task_gate.clear()  # Instantly pauses the offline thread
-            self.current_state = "ENGAGED"
-            self.append_journal("SYSTEM", "Steve detected. Suspended all background tasking.")
-            
-        elif not self.user_present and self.current_state != "ALONE":
-            # Pivot from focus to standalone planning
-            print("[EXEC] User departed. Resuming autonomous background thinking.")
-            self.current_state = "ALONE"
-            self.append_journal("SYSTEM", "Environment cleared. Awakening offline task processing.")
-            self.task_gate.set()    # Releases the block on the offline thread
+            # Simple simulation tracking of offline background vectorization or memory cleanups
+            # print("[EXECUTIVE] Idle environment status: Executing vector index health validations...")
+            time.sleep(10.0)
 
     def startup(self):
-        """Launches all concurrent thread processing systems cleanly."""
-        self.append_journal("SYSTEM", "Piper Executive Control Engine booted successfully.")
+        """System entry execution method. Spawns sub-threads into operational status."""
+        print("[EXECUTIVE] Commencing kernel initialization protocols...")
+        self.append_journal("KERNEL_LIFECYCLE", "System executive layers booted cleanly.")
         
-        # Configure threads
-        self.threads = {
-            "visual": threading.Thread(target=self._visual_worker, daemon=True),
-            "listening": threading.Thread(target=self._listening_worker, daemon=True),
-            "offline_tasks": threading.Thread(target=self._offline_task_worker, daemon=True)
-        }
+        # Initial Thread Initialization Management
+        self.threads["visual"] = threading.Thread(target=self._visual_worker, daemon=True)
+        self.threads["listening"] = threading.Thread(target=self._listening_worker, daemon=True)
+        self.threads["offline_tasks"] = threading.Thread(target=self._offline_task_worker, daemon=True)
         
-        # Initial gate state: Assume alone at startup
-        self.task_gate.set()
-        
-        # Launch everything
-        for t in self.threads.values():
-            t.start()
+        # Kickoff tasks execution
+        self.task_gate.set() # Allow idle workflows to process initially if clear
+        for thread_name, thread_object in self.threads.items():
+            thread_object.start()
             
-        # Run main control check loop
-        try:
-            while not self.stop_signal.is_set():
-                self.evaluate_state_transitions()
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            self.shutdown()
+        print("[EXECUTIVE] All core auxiliary background worker nodes are running.")
 
     def shutdown(self):
-        """Gracefully halts execution and synchronizes all pending disk buffers."""
-        print("\n[EXEC] Initiating ordered shutdown sequence...")
-        self.append_journal("SYSTEM", "System shutdown sequence commanded.")
+        """Orderly termination sequence. Flushes buffers and unlocks internal gates safely."""
+        print("\n[EXECUTIVE] Intercepted termination sequence command. Powering down tiers...")
         self.stop_signal.set()
-        self.task_gate.set()  # Clear gate block so thread can exit cleanly
-        print("[EXEC] Core systems offline. Safe to disconnect.")
+        self.task_gate.set()  # Unblock the offline loop if it's currently waiting on the gate
+        
+        for thread_name, thread_object in self.threads.items():
+            if thread_object.is_alive():
+                thread_object.join(timeout=2.0)
+                
+        self.append_journal("KERNEL_LIFECYCLE", "System runtime execution environment halted gracefully.")
+        print("[EXECUTIVE] Executive core successfully brought offline.")
 
 if __name__ == "__main__":
-    controller = CoreExecutive()
-    controller.startup()
+    # Local simulation standalone unit verification test block execution
+    exec_kernel = ExecutiveKernel()
+    try:
+        exec_kernel.startup()
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        exec_kernel.shutdown()
