@@ -83,7 +83,7 @@ The project distributes workloads across three hardware nodes, separating physic
 * **Cognitive Memory Ledger:** The interaction transaction is permanently committed to journal_queries.md on the Jetson filesystem, updating a sliding FIFO context queue to protect working VRAM limits.
 * **Neural Vocalization:** The text response is fed directly into the Jetson's local Piper TTS engine using the en_US-hfc_female-medium ONNX checkpoint.
 * **Low-Latency Execution:** To achieve zero-latency room playback, audio frames are streamed slice-by-slice out of the Jetson’s dedicated local USB audio hardware interface, completely bypassing remote network audio transport overhead.
-
+```
 ---
 ## `🔵` Repository Structure
 ```plaintext
