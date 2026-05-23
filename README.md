@@ -2,10 +2,12 @@
 An advanced, low-latency distributed voice and vision assistant leveraging edge AI acceleration, gRPC transport, and a local large language model.
 
 ---
+
 ## `🔵` Overview
 The Piper Project is an agentic chatbot assistant split across three distinct compute tiers to optimize processing efficiency, eliminate audio latency, and achieve natural-sounding voice interactions. By treating physical I/O and cognitive AI processing as decoupled modules, the system guarantees real-time responsiveness and modular scalability.
 
 ---
+
 ## `🔵` Core Goals & Performance Targets
 * **Sub-Second Latency:** Total Time-to-First-Audio (TTFA) of under 1.0 second from the moment the user finishes speaking, made possible by HTTP/2 stream multiplexing.
 * **High-Fidelity Audio:** Natural phrasing and intonation by offloading TTS generation entirely to the Jetson Orin NX GPU, completely unburdening the Pi 5 CPU.
@@ -13,8 +15,8 @@ The Piper Project is an agentic chatbot assistant split across three distinct co
 * **Modular Design:** Clear separation of concerns allowing individual hardware tiers to be updated, scaled, or replaced without breaking the pipeline.
 
 ---
-## `🔵` Roadmap & Development Phases
 
+## `🔵` Roadmap & Development Phases
 * **Step 0: Architectural Design Planning (COMPLETE)**
     * Establish system topology, device roles, data contracts, and directory mapping.
 * **Step 1: OpenCode Environment Setup (COMPLETE)**
@@ -28,20 +30,21 @@ The Piper Project is an agentic chatbot assistant split across three distinct co
     * Implement dual-eye horizontal symmetry validation thresholds to register new users on the fly.
 
 ---
-## `🔵` System Architecture
 
+## `🔵` System Architecture
 The project distributes workloads across three hardware nodes, separating physical execution from cognitive processing:
 
 | Tier | Component Name | Hardware | Core Functional Role | Primary Software Stack |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. The Body** | `pi5_body` | Raspberry Pi 5 <br> SunFounder FusionHat AI <br> 7" Display <br> Logitech Webcam | **Sensory Input & Physical Reflexes:** Continuous microphone capture, camera frame buffering, UI rendering, and pan/tilt actuator execution. | Python, PyAudio, gRPC Client |
-| **2. The Mind** | `jetson_nx_mind` | Jetson Orin NX (16GB) <br> USB Audio Speaker | **Cognition, Acceleration, & Vocalization:** Local Whisper STT, local high-fidelity Neural Piper TTS, local USB audio spatial playback, and thread lifecycle orchestration. | OpenCode, Faster-Whisper, Piper TTS, SoundDevice, gRPC Server, CUDA/ONNX |
-| **3. The Brain** | Central Compute | Quantum PC <br> NVIDIA RTX 5070 GPU | **Deep Inference:** Multi-turn conversational sliding context management and heavy-parameter local LLM execution. | Ollama, Hermes-3-8B / Llama-3.1 |
+| **1. The Body** | `pi5_body` | * Raspberry Pi 5<br>* SunFounder FusionHat AI<br>* 7" Display<br>* Logitech Webcam | **Sensory Input & Physical Reflexes:** Continuous microphone capture, camera frame buffering, UI rendering, and pan/tilt actuator execution. | Python, PyAudio, gRPC Client |
+| **2. The Mind** | `jetson_nx_mind` | * Jetson Orin NX (16GB)<br>* USB Audio Speaker | **Cognition, Acceleration, & Vocalization:** Local Whisper STT, local high-fidelity Neural Piper TTS, local USB audio spatial playback, and thread lifecycle orchestration. | OpenCode, OpenCV 4.11.0 (Native Wayland/Qt5 + CUDA 12.6 + cuDNN), Faster-Whisper, Piper TTS, SoundDevice, gRPC Server |
+| **3. The Brain** | Central Compute | * Quantum PC<br>* NVIDIA RTX 5070 GPU | **Deep Inference:** Multi-turn conversational sliding context management and heavy-parameter local LLM execution. | Ollama, Hermes-3-8B / Llama-3.1 |
 
 ---
+
 ## `🔵` Data & Communication Flow
 
-```text
+```plaintext
 +-----------------------------------------------------------------+
 |                           pi5_body                              |
 |             Raspberry Pi 5 + SunFounder FusionHat AI            |
@@ -73,7 +76,6 @@ The project distributes workloads across three hardware nodes, separating physic
 |             Quantum PC (NVIDIA RTX 5070 Workstation)            |
 |         (Hosts Hermes-3 / Llama-3.1 via Networked Ollama)       |
 +-----------------------------------------------------------------+
-```
 
 * **Audio Ingestion:** pi5_body captures user speech via the SunFounder FusionHat mic array at 16kHz Mono and streams raw PCM chunks over a persistent gRPC connection to jetson_nx_mind.
 * **Transcription:** jetson_nx_mind ingests the raw stream and processes it via hardware-accelerated Faster-Whisper down to clean text strings.
@@ -152,10 +154,13 @@ The `jetson_nx_mind` tier runs an asynchronous, multi-threaded state engine driv
 ### 1. State Machine thread (motivation). 
 This is the primary thread managing Piper’s cognitive state machine, goals, and behavioral context. It operates independently of raw I/O loops and coordinates the activation of sub-threads based on four operational states:
 
-* STATE: ALONE (Proactive Processing): When no humans are detected, the thread executes internal goals, handles memory database curation, or runs low-priority background planning tasks.
-* STATE: PERCEIVING (Identification): Triggered when the Visual Thread detects a human presence. The Process Thread temporarily pauses background tasks and waits for the identity verification layer.
-* STATE: ENGAGED (Proactive Summary): When a recognized user (e.g., Steve) is identified, the thread checks its historical memory, calculates elapsed time since the last interaction, and actively initiates a vocal summary of standalone activities.
-* STATE: CONVERSING (Reactive Interaction): Minimizes internal task overhead to focus entirely on the low-latency text-to-speech loop between the local gRPC streams and the Quantum PC.
+* **STATE: ALONE (World Modeling & Spatial Hypothesis):** When no humans are present, Piper shifts from reactive text processing to active environmental learning. The _offline_task_worker utilizes the Visual Thread to test physical hypotheses.
+	* Proprioception Testing: Piper executes micro-movements with its servos and compares the expected visual matrix shift against the actual camera input, refining its internal calibration.
+	* Object Permanence: Utilizing YOLOv8 combined with a localized spatial memory matrix, Piper tracks moving objects (e.g., pets, rolling items, shifting shadows), predicts their trajectories when occluded, and actively searches if the environment violates its physical predictions.
+* **STATE: PERCEIVING (Identification):** Triggered when the Visual Thread detects a human presence. The Process Thread temporarily pauses background tasks and waits for the identity verification layer.
+* **STATE: ENGAGED (Proactive Summary):** When a recognized user (e.g., Steve) is identified, the thread checks its historical memory, calculates elapsed time since the last interaction, and actively initiates a vocal summary of standalone activities.
+* **STATE: CONVERSING (Reactive Interaction):** Minimizes internal task overhead to focus entirely on the low-latency text-to-speech loop between the local gRPC streams and the Quantum PC.
+
 
 ### 2. The Visual Thread (Onboard Jetson NX)
 * Hardware Connection: The Logitech webcam connects directly to a native USB 3.0 port on the Jetson Orin NX, utilizing direct V4L2 hardware capture buffers.
@@ -249,8 +254,14 @@ To expand Piper's relational memory without requiring manual administrative file
 
 ### Step 2: Unified Executive Core & Network Exposure (Jetson Orin NX)
 
+> [!IMPORTANT]
+> **Wayland & KVM Display Routing (JetPack 6.1 Architecture):**
+> Because JetPack 6.1 leverages a native Wayland/Weston display compositor, legacy X11 windows will fail to open on default ports. Ensure your local terminal environment explicitly targets your active desktop display layer (experimentally mapped to display layer `:2`) before launching the master executive core:
+> ```bash
+> export DISPLAY=:2
+> python3 jetson_nx_mind/src/main.py
+> ```
 **Action:** Run the unified runtime launch script on the Jetson.
-**Command:** (Terminal): python3 src/main.py
 **Notes:** This single entry point spins up the executive state manager, allocates your local camera buffers, initializes your CognitiveKernel network destinations, and exposes your gRPC service listening ports simultaneously on port 50051.
 
 ### Step 3: Sensory Binding (Raspberry Pi 5)

@@ -97,12 +97,12 @@ class ExecutiveKernel:
             # Re-open background execution threads when the space is empty
             self.task_gate.set()
 
+
     def _visual_worker(self):
-        """Drives local V4L2 video stream analysis and handles facial enrollment pipelines."""
+        """Drives hardware-accelerated camera frames through unified YOLO and identity filters."""
         print("[EXECUTIVE] Spawning asynchronous visual tracking worker loop...")
         
-        # Initialize native USB 3.0 hardware camera interface
-        cap = cv2.VideoCapture(0)
+        # Instantiate our newly fused GPU-accelerated Vision Engine
         vision = VisionEngine()
         
         # Enrollment Lifecycle Primitives
@@ -110,12 +110,13 @@ class ExecutiveKernel:
         captured_roi = None
         
         while not self.stop_signal.is_set():
-            ret, frame = cap.read()
+            # Let your custom V4L2 hooks inside perception handle hardware reads, CLAHE, and Unsharp sharpening
+            ret, frame = vision.yolo_driver.get_frame()
             if not ret:
-                time.sleep(0.03)
+                time.sleep(0.01)
                 continue
 
-            # Ingest image frame metrics array
+            # Run frame extraction metrics
             state, identity, metrics = vision.analyze_frame(frame)
             
             # --- STATE MANAGEMENT EVALUATION INTERFACE ---
@@ -123,7 +124,6 @@ class ExecutiveKernel:
                 if self.current_state != "ALONE" and not awaiting_name_string:
                     self.evaluate_state_transitions("ALONE", None)
                     print("[EXECUTIVE] Room vacancy discovered. Returning look-angles to true zero.")
-                    # Future action: self.gateway.send_servo_center_cmd()
                     
             elif state == "ENGAGED":
                 if self.current_state == "ALONE":
@@ -131,53 +131,49 @@ class ExecutiveKernel:
                     print(f"[EXECUTIVE] Biometric match confirmed: Welcoming {identity}.")
                     self.append_journal("FACIAL_RECOGNITION", f"Verified user {identity} entered frame matrix.")
                     
-                    # Direct vocal notification loop interaction pass
                     if self.gateway:
                         greeting = f"Welcome back, {identity}. Spatial tracking metrics locked."
                         self.gateway.stream_vocalize_text(greeting)
                         
             elif state == "PERCEIVING_UNKNOWN":
                 if self.current_state == "ALONE" and not awaiting_name_string:
-                    # An un-indexed face has stepped into frame range
                     self.evaluate_state_transitions("PERCEIVING", "Unknown")
                     
-                    # Enforce dual-eye horizontal capture requirement and target pixel centering balance
+                    # Verify structural enrollment constraints before spawning the blocking Whisper check
                     if metrics["both_eyes_visible"] and metrics["is_centered"]:
                         print("[EXECUTIVE] Optimal frontal alignment acquired. Triggering vocal prompt sequence...")
                         
                         if self.gateway:
-                            # 1. Capture and isolate the valid facial bounding box array in memory
                             captured_roi = metrics["roi"]
                             awaiting_name_string = True
                             
-                            # 2. Instruct the physical chassis speaker to inquire for verification
                             self.gateway.stream_vocalize_text("Hello. I do not recognize your profile footprint yet. What is your name?")
-                            
-                            # 3. Intercept next text string returning from the incoming gRPC Whisper loop
-                            # NOTE: This hook relies on your gateway setting up a short block read-pipe.
                             print("[EXECUTIVE] Listening for name transcription string...")
                             
-                            # Placeholder fallback until dynamic gateway read-pipe function is exposed:
-                            # name_payload = self.gateway.await_next_whisper_string(timeout=8)
-                            time.sleep(4) # Simulating voice pipeline acquisition window delay
-                            name_payload = "Guest_Steve_Peer" # Example simulated catch string
+                            # Reset the thread event flag before entering the wait state
+                            self.gateway.transcription_ready.clear()
                             
-                            if name_payload:
-                                # Commits the frontal snapshot safely out to local disk models folder
+                            # Block for up to 8 seconds waiting for the gRPC thread to intercept the user's name
+                            success = self.gateway.transcription_ready.wait(timeout=8.0)
+                            
+                            if success and self.gateway.latest_transcription:
+                                name_payload = self.gateway.latest_transcription.strip()
                                 saved_file = vision.save_new_face(name_payload, captured_roi)
                                 self.append_journal("USER_ENROLLMENT", f"Registered profile identity '{name_payload}' via file {saved_file}")
                                 self.gateway.stream_vocalize_text(f"Understood. Biometric parameters saved. Nice to meet you, {name_payload}.")
                             else:
+                                print("[EXECUTIVE] Registration window timed out or text payload was empty.")
                                 self.gateway.stream_vocalize_text("Registration window timed out. Profile discarded.")
                                 
                             awaiting_name_string = False
                             captured_roi = None
 
-            # Enforce execution thread yielding pacing
             time.sleep(0.01)
             
-        cap.release()
+        # Clean up the camera connection via your native perception release method
+        vision.yolo_driver.release()
         print("[EXECUTIVE] Visual worker lifecycle loop brought down safely.")
+
 
     def _listening_worker(self):
         """Monitors network-facing gRPC pipelines and logs interaction metrics."""

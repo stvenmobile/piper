@@ -31,6 +31,7 @@ Thumbs.db
 # Project Runtime Logs and Temporary Buffers
 *.log
 jetson_nx_mind/memory/journal.json
+jetson_nx_mind/journal_queries
 jetson_nx_mind/memory/task_progress.json
 
 # Local hardware configurations and credentials
@@ -38,3 +39,11 @@ jetson_nx_mind/.env
 
 # Heavy neural voice model weights
 jetson_nx_mind/voices/
+# Local OpenCV Build Artifacts
+opencv/
+opencv_contrib/
+opencv_workspace/
+camera_snapshot.jpg
+# Universal environment credentials catch-all
+.env
+*.env

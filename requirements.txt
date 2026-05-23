@@ -1,0 +1,26 @@
+# Core System & Hardware Drivers (Strictly Locked for JetPack 6.1 Compatibility)
+numpy>=1.26.4,<2.0.0
+setuptools==81.0.0
+
+# Computer Vision & Machine Learning Layers (Direct GPU Mapping)
+ultralytics
+omegaconf==2.3.0
+antlr4-python3-runtime==4.9.3
+dlib
+face_recognition
+face_recognition_models @ git+https://github.com/ageitgey/face_recognition_models.git
+
+# Distributed Communication (gRPC Substrate)
+grpcio
+grpcio-tools
+
+# Audio & Local Perception Handling
+sounddevice
+faster-whisper
+
+# Environment & Infrastructure Utilities
+python-dotenv
+requests
+
+# Text-to-Speech Engine
+piper-tts

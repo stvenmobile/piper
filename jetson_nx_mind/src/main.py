@@ -1,13 +1,23 @@
 # ==============================================================================
 # Component:  jetson_nx_mind
 # Module:     main.py
-# Version:    1.0.0 (Unified Core Runtime Launcher)
+# Version:    1.1.0 (Unified Core Runtime Launcher & Path Resolver)
 # Purpose:    Provides a single orchestration script to spin up both the 
 #             core thread executive loop and the open network gRPC channels.
+#             Handles local path anchors to prevent module import cross-firing.
 # ==============================================================================
 
-import time
+import os
 import sys
+import time
+
+# Resolve dynamic paths so nested modules under src/ can find sibling files seamlessly
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+sys.path.append(CURRENT_DIR)
+sys.path.append(PARENT_DIR)
+
+# Clean imports from the verified execution path namespaces
 from core_exec import ExecutiveKernel
 from gateway import start_gateway_server
 
