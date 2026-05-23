@@ -76,6 +76,7 @@ The project distributes workloads across three hardware nodes, separating physic
 |             Quantum PC (NVIDIA RTX 5070 Workstation)            |
 |         (Hosts Hermes-3 / Llama-3.1 via Networked Ollama)       |
 +-----------------------------------------------------------------+
+```
 
 * **Audio Ingestion:** pi5_body captures user speech via the SunFounder FusionHat mic array <br> at 16kHz Mono and streams raw PCM chunks over a persistent gRPC connection to jetson_nx_mind.
 * **Transcription:** jetson_nx_mind ingests the raw stream and processes it via hardware-accelerated <br> Faster-Whisper down to clean text strings.
@@ -83,8 +84,9 @@ The project distributes workloads across three hardware nodes, separating physic
 * **Cognitive Memory Ledger:** The interaction transaction is permanently committed to journal_queries.md <br>on the Jetson filesystem, updating a sliding FIFO context queue to protect working VRAM limits.
 * **Neural Vocalization:** The text response is fed directly into the Jetson's local Piper TTS engine <br>using the en_US-hfc_female-medium ONNX checkpoint.
 * **Low-Latency Execution:** To achieve zero-latency room playback, audio frames are streamed <br>slice-by-slice out of the Jetson’s dedicated local USB audio hardware interface, completely bypassing remote network audio transport overhead.
-```
+
 ---
+
 ## `🔵` Repository Structure
 ```plaintext
 ├── jetson_nx_mind/       # Runs on Jetson Orin NX (Managed via OpenCode)
