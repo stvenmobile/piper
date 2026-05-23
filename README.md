@@ -78,12 +78,12 @@ The project distributes workloads across three hardware nodes, separating physic
 +-----------------------------------------------------------------+
 ```
 
-* **Audio Ingestion:** pi5_body captures user speech via the SunFounder FusionHat mic array <br> at 16kHz Mono and streams raw PCM chunks over a persistent gRPC connection to jetson_nx_mind.
+* **Audio Ingestion:** pi5_body captures user speech via the SunFounder FusionHat mic array at 16kHz <br> Mono and streams raw PCM chunks over a persistent gRPC connection to jetson_nx_mind.
 * **Transcription:** jetson_nx_mind ingests the raw stream and processes it via hardware-accelerated <br> Faster-Whisper down to clean text strings.
 * **Distributed Inference:** The Jetson packages the text string and forwards it via a network POST <br> request to Ollama listening on the Quantum PC (192.168.1.150:11434). The RTX 5070 processes the prompt through an 8B context window and returns a text block response.
-* **Cognitive Memory Ledger:** The interaction transaction is permanently committed to journal_queries.md <br>on the Jetson filesystem, updating a sliding FIFO context queue to protect working VRAM limits.
-* **Neural Vocalization:** The text response is fed directly into the Jetson's local Piper TTS engine <br>using the en_US-hfc_female-medium ONNX checkpoint.
-* **Low-Latency Execution:** To achieve zero-latency room playback, audio frames are streamed <br>slice-by-slice out of the Jetson’s dedicated local USB audio hardware interface, completely bypassing remote network audio transport overhead.
+* **Cognitive Memory Ledger:** The interaction transaction is permanently committed to journal_queries.md <br> on the Jetson filesystem, updating a sliding FIFO context queue to protect working VRAM limits.
+* **Neural Vocalization:** The text response is fed directly into the Jetson's local Piper TTS engine <br> using the en_US-hfc_female-medium ONNX checkpoint.
+* **Low-Latency Execution:** To achieve zero-latency room playback, audio frames are streamed <br> slice-by-slice out of the Jetson’s dedicated local USB audio hardware interface, completely bypassing remote network audio transport overhead.
 
 ---
 
