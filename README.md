@@ -86,7 +86,7 @@ The project distributes workloads across three hardware nodes, separating physic
 
 ---
 ## `🔵` Repository Structure
-```
+```plaintext
 ├── jetson_nx_mind/       # Runs on Jetson Orin NX (Managed via OpenCode)
 │   ├── proto/            # Master .proto definitions and compiled stubs
 │   ├── src/
