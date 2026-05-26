@@ -1,15 +1,9 @@
 # ==============================================================================
 # Component:  jetson_nx_mind
 # Module:     identity.py
-# Version:    3.1.0 (Zero-Copy Local Inference)
+# Version:    3.2.0 (Forced Bounding Box Profile Indexer)
 # Purpose:    Facial recognition matching against local database matrices.
-#
-# Change History / Release Notes:
-# Date        Version   Author    Description of Changes
-# ----------  --------  --------  ----------------------------------------------
-# 2026-05-17  3.0.0     Steve     Updated face directory paths for revamp.
-# 2026-05-17  3.1.0     Steve     Confirmed local-memory compatibility for 
-#                                 zero-copy frame sharing with VisionEngine.
+#             UPDATED: Robust fallback scanning to prevent index validation drops.
 # ==============================================================================
 
 import face_recognition
@@ -40,17 +34,30 @@ class FaceManager:
             for file in files:
                 if file.lower().endswith(".jpg") and "-001" in file:
                     path = os.path.join(root, file)
+                    friendly_name = file.split('-')[0].strip()
+                    
+                    # Skip broken empty name registration files
+                    if not friendly_name:
+                        continue
+                        
                     try:
                         image = face_recognition.load_image_file(path)
+                        # Attempt standard detection first
                         encodings = face_recognition.face_encodings(image)
                         
+                        # Fallback: If it misses, treat the entire image area as the face box
+                        if len(encodings) == 0:
+                            h, w, _ = image.shape
+                            # format: (top, right, bottom, left)
+                            entire_frame_box = (0, w, h, 0)
+                            encodings = face_recognition.face_encodings(image, [entire_frame_box])
+
                         if len(encodings) > 0:
                             self.known_encodings.append(encodings[0])
-                            friendly_name = file.split('-')[0]
                             self.known_names.append(friendly_name)
-                            print(f"[IDENTITY] + Loaded reference for '{friendly_name}'")
+                            print(f"[IDENTITY] + Successfully indexed profile for '{friendly_name}'")
                         else:
-                            print(f"[IDENTITY] ! Failed index validation: {path}")
+                            print(f"[IDENTITY] ! Failed index validation: {path} (No face features extracted)")
                     except Exception as e:
                         print(f"[IDENTITY] ! Exception processing asset {path}: {e}")
 
@@ -61,12 +68,15 @@ class FaceManager:
         if not self.known_encodings:
             return "Unknown"
 
-        # face_recognition spatial tracking format: (top, right, bottom, left)
-        current_encoding = face_recognition.face_encodings(frame, [face_location])[0]
-        results = face_recognition.compare_faces(self.known_encodings, current_encoding, tolerance=0.5)
-        
-        if True in results:
-            first_match_index = results.index(True)
-            return self.known_names[first_match_index]
+        try:
+            # face_recognition spatial tracking format: (top, right, bottom, left)
+            current_encoding = face_recognition.face_encodings(frame, [face_location])[0]
+            results = face_recognition.compare_faces(self.known_encodings, current_encoding, tolerance=0.5)
+            
+            if True in results:
+                first_match_index = results.index(True)
+                return self.known_names[first_match_index]
+        except Exception:
+            pass
         
         return "Unknown"

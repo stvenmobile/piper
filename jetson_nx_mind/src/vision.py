@@ -1,9 +1,10 @@
 # ==============================================================================
 # Component:  jetson_nx_mind
 # Module:     vision.py
-# Version:    2.0.0 (GPU-Accelerated YOLOv8 Integration Substrate)
+# Version:    2.1.0 (GPU-Accelerated YOLOv8 - Full Frame Enrollment Fix)
 # Purpose:    Wraps perception.py hardware loops, computes dual-eye visibility,
 #             and enforces real-time bounding box metrics for the executive.
+#             UPDATED: Saves full frame context to ensure face_recognition indexes.
 # ==============================================================================
 
 import os
@@ -56,11 +57,11 @@ class VisionEngine:
             "is_centered": is_centered,
             "centering_delta": centering_delta,
             "both_eyes_visible": both_eyes_visible,
-            "roi": face_roi_color
+            "roi": face_roi_color,
+            "full_frame": frame.copy() # THIS IS THE CRITICAL KEY NEEDED BY CORE_EXEC
         }
 
         # 4. Run Identity Verification via face_recognition matrix
-        # face_recognition format expects: (top, right, bottom, left)
         fr_location = (y1, x2, y2, x1)
         identity = self.identity_matcher.identify(frame, fr_location)
 
@@ -69,11 +70,17 @@ class VisionEngine:
         else:
             return "PERCEIVING_UNKNOWN", "Unknown", metrics
 
-    def save_new_face(self, name, roi_image):
-        """Commits the optimal frontal face array to disk and forces an identity re-index."""
+    def save_new_face(self, name, full_frame_image):
+        """Commits the full frame array to disk to optimize frontal face recognition indexing."""
+        # Sanitize string to clean up double utterances, trailing spaces, or invalid characters
+        clean_name = name.lower().strip()
+        clean_name = " ".join(clean_name.split()) 
+        clean_name = clean_name.replace(" ", "_") 
+        
         # Follow your structured identity naming requirement format: [name]-001.jpg
-        filename = os.path.join(self.registration_path, f"{name.lower().strip()}-001.jpg")
-        cv2.imwrite(filename, roi_image)
+        filename = os.path.join(self.registration_path, f"{clean_name}-001.jpg")
+        
+        cv2.imwrite(filename, full_frame_image)
         print(f"[VISION] Enrolled new biometric profile matrix: {filename}")
         
         # Hot-reload the database so she knows them on the very next frame loop
