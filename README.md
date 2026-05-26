@@ -1,10 +1,10 @@
-*Piper Project: Autonomous Spatial Researcher**
+# **Piper Project: Autonomous Spatial Researcher**
 
 An agentic, visually-aware embodied AI leveraging edge acceleration
 (Jetson Orin NX), YOLOv8 perception, and OpenCode orchestration to
 conduct spatial research and autonomous task management.
 
-**1. Piper - Overview and Purpose**
+## **1. Piper - Overview and Purpose**
 
 The Piper Project has evolved from a reactive voice assistant into a
 proactive, agentic spatial researcher. Piper\'s primary directive is to
@@ -21,7 +21,7 @@ she recognizes a collaborator (Steve), she shifts into a support role,
 checking dedicated request files to assist with coding, status
 reporting, or local system modifications.
 
-**2. Architectural Design**
+## **2. Architectural Design**
 
 **State Machine**
 
@@ -72,7 +72,7 @@ tasks, formulates a plan, executes Python/Bash commands via OpenCode,
 observes the results through her camera or terminal outputs, and writes
 her conclusions to a persistent journal.
 
-**3. OpenCode Structural Components & File System Organization**
+## **3. OpenCode Structural Components & File System Organization**
 
 Piper\'s memory and motivation are governed by a specific directory of
 markdown and JSON files. OpenCode acts as the interface to read, parse,
@@ -96,7 +96,7 @@ and update these documents.
   results in a -45 pixel horizontal shift of the target bounding box at
   1 meter distance\").
 
-**4. Implementation Notes**
+## **4. Implementation Notes**
 
 - **V3 Paradigm Shift:** All prior STT (Faster-Whisper), TTS (Piper
   Voice), and audio-streaming dependencies (PyAudio, SoundDevice) have
@@ -111,7 +111,7 @@ and update these documents.
   the neck tracking math to prevent mechanical oscillation/jitter when
   YOLO bounding boxes fluctuate at the sub-pixel level.
 
-**5. Next Steps**
+## **5. Next Steps**
 
 1.  Cleanse existing main.py and core_exec.py modules of all residual
     audio routing, listening threads, and gRPC gateway imports.
