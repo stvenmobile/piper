@@ -1,4 +1,4 @@
-**Piper Project: Autonomous Spatial Researcher**
+*Piper Project: Autonomous Spatial Researcher**
 
 An agentic, visually-aware embodied AI leveraging edge acceleration
 (Jetson Orin NX), YOLOv8 perception, and OpenCode orchestration to
