@@ -1,0 +1,43 @@
+<div class="card" id="agent-terminal" style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-top: 20px; font-family: monospace;">
+    <h2 style="color: #ffa500; margin-top: 0;">&#9670; Piper Task Command Console</h2>
+    <div id="terminal-history" style="height: 180px; overflow-y: auto; background: #010409; padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: left; color: #58a6ff; border: 1px solid #21262d; line-height: 1.4;">
+        <span style="color: #8b949e;">[SYSTEM] Interface initialized. Standing by for direct user tasking...</span>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <input type="text" id="cmd-input" placeholder="Ask a question or specify a new automated research task..." style="flex-grow: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px;">
+        <button onclick="submitCommand()" style="background: #238636; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 14px;">Execute</button>
+    </div>
+</div>
+
+<script>
+function submitCommand() {
+    let inputEl = document.getElementById('cmd-input');
+    let historyEl = document.getElementById('terminal-history');
+    let text = inputEl.value.trim();
+    if(!text) return;
+    
+    // Print user entry locally instantly
+    historyEl.innerHTML += "<br><span style='color:#79c0ff;'>&gt; Steve:</span> " + text;
+    historyEl.scrollTop = historyEl.scrollHeight;
+    
+    fetch('/api/command', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ command: text })
+    })
+    .then(res => res.json())
+    .then(data => {
+        historyEl.innerHTML += "<br><span style='color:#56d364;'>&gt; Piper:</span> " + data.response;
+        historyEl.scrollTop = historyEl.scrollHeight;
+    })
+    .catch(err => {
+        historyEl.innerHTML += "<br><span style='color:#f85149;'>[ERROR] Failed to dispatch directive to backend routing core.</span>";
+    });
+    inputEl.value = '';
+}
+
+// Allow pressing 'Enter' key inside the text field to submit
+document.getElementById('cmd-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') submitCommand();
+});
+</script>

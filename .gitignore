@@ -1,0 +1,54 @@
+# ==============================================================================
+# Project Piper: ROS2 Master Git Ignore Patterns
+# ==============================================================================
+
+# ROS2 Colcon Build & Workspace Artifacts
+build/
+install/
+log/
+.build/
+
+# Virtual Environments & Packages
+venv/
+.venv/
+env/
+ENV/
+.egg-info/
+lib/
+
+# Python Cache & Compiled Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local Operating System Artifacts
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor Configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OpenCode Storage & Dynamic Persistent Journals
+# (We ignore these to avoid constantly pushing operational run logs to Git)
+piper_brain/daily_journal.md
+piper_brain/task_requests.md
+piper_brain/world_model_definition.md
+
+# Hardware Media Buffers and Temporary Frames
+*.log
+camera_snapshot.jpg
+*.jpg
+*.png
+
+# Credentials & Hardware Specific Environments
+.env
+*.env

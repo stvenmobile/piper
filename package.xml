@@ -1,0 +1,26 @@
+<package format="3">
+  <name>piper_brain</name>
+  <version>0.0.1</version>
+  <description>ROS2 node for Piper's central supervisor and skill execution.</description>
+  <maintainer email="steve@example.com">Steve</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>piper_interfaces</depend>
+  <depend>action_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
