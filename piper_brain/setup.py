@@ -24,7 +24,10 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'piper_brain_node = piper_brain.piper_brain_node:main',
+            'camera_node = piper_brain.camera_node:main',
+            'servo_node = piper_brain.servo_node:main',
+            'vision_tracking_node = piper_brain.vision_tracking_node:main',
+            'dashboard = piper_brain.dashboard:main',  # <-- MAKE SURE THIS LINE EXISTS
         ],
     },
 )
