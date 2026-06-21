@@ -45,9 +45,6 @@ piper_brain/world_model_definition.md
 
 # Hardware Media Buffers and Temporary Frames
 *.log
-camera_snapshot.jpg
-*.jpg
-*.png
 
 # Credentials & Hardware Specific Environments
 .env
