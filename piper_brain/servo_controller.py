@@ -26,7 +26,7 @@ class ServoController:
         self.tilt_servo.set_pulse_width_range(500, 2500)
 
         self.current_pan = 90
-        self.current_tilt = 90
+        self.current_tilt = 70
         self.center()
         print("\n[SUCCESS] Servos initialized and centered.")
 
@@ -44,7 +44,7 @@ class ServoController:
     def center(self):
         """Centers both pan and tilt servos to 90 degrees."""
         self.set_pan(90)
-        self.set_tilt(90)
+        self.set_tilt(70)
 
     def get_pan(self):
         """Returns the current pan angle."""
