@@ -37,6 +37,6 @@ def generate_launch_description():
     return LaunchDescription([
         video_arg,
         camera_node,
-        servo_node,
-        vision_node
+        servo_node
+        # vision_node
     ])
