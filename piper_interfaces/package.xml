@@ -1,0 +1,18 @@
+<package format="3">
+  <name>piper_interfaces</name>
+  <version>0.0.1</version>
+  <description>Custom interfaces for Piper project</description>
+  <maintainer email="steve@example.com">Steve</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <depend>action_msgs</depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
