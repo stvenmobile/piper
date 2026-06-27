@@ -5,7 +5,7 @@ from geometry_msgs.msg import Vector3
 import time
 
 # Import your working legacy hardware controller class
-from piper_brain.servo_controller import ServoController
+from piper_drivers.servo_controller import ServoController
 
 
 class PiperServoNode(Node):
