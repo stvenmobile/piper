@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'piper_brain'
+package_name = 'piper_drivers'
 
 setup(
     name=package_name,
@@ -12,26 +12,23 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # 1. Include launch files
+        # Include your driver launch targets
         (os.path.join('share', package_name, 'launch'), glob('launch/*_launch.py')),
-        # 2. Include HTML template layouts for the Flask server
-        (os.path.join('share', package_name, 'piper_brain/templates'), glob('piper_brain/templates/*.html')),
-        # 3. Include local asset templates for facial recognition matches
-        (os.path.join('share', package_name, 'piper_brain/assets/faces'), glob('piper_brain/assets/faces/*.jpg')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='steve',
     maintainer_email='stvenmobile@gmail.com',
-    description='Piper Brain Cognition Tier Node',
+    description='Piper Driver & Low-Level Perceptual Tier Nodes',
     license='TODO: License declaration',
     extras_require={
         'test': ['pytest'],
     },
     entry_points={
         'console_scripts': [
-            'piper_brain_node = piper_brain.piper_brain_node:main',
-            'dashboard_node = piper_brain.dashboard_node:main',
+            'camera_node = piper_drivers.camera_node:main',
+            'servo_node = piper_drivers.servo_node:main',
+            'vision_tracking_node = piper_drivers.vision_tracking_node:main',
         ],
     },
 )

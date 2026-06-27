@@ -3,22 +3,21 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        # 1. Physical CSI Camera Driver Node (Modified for Single-Stream/Hardware Flip)
+        # 1. Cognitive Priority Queue Core & Action Server
         Node(
             package='piper_brain',
-            executable='camera_node',
-            name='piper_camera_node',
+            executable='piper_brain_node',
+            name='piper_brain_node',
             output='screen',
             emulate_tty=True
         ),
         
-        # 2. AI Vision Processing Layer (Running Headless on Jetson)
+        # 2. Workstation Flask Web Interface & Local Biometrics Node
         Node(
             package='piper_brain',
-            executable='vision_tracking_node',
-            name='piper_vision_tracking_node',
+            executable='dashboard_node',
+            name='um790_dashboard_node',
             output='screen',
-            emulate_tty=True,
-            parameters=[{'video': False}] # <--- Disables local cv2.imshow windows
+            emulate_tty=True
         )
     ])
