@@ -15,19 +15,34 @@ import cv2
 from cv_bridge import CvBridge
 import face_recognition
 
-# Flask Setup
+# Flask Setup - Point directly to the internal CMake binary tree installation space
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# If running via ros2 launch, we are inside lib/piper_brain/
+# The install(DIRECTORY) puts assets inside lib/piper_brain/piper_brain/
+if os.path.exists(os.path.join(CURRENT_DIR, "piper_brain", "templates")):
+    TEMPLATE_FOLDER = os.path.join(CURRENT_DIR, "piper_brain", "templates")
+    ASSETS_FOLDER = os.path.join(CURRENT_DIR, "piper_brain", "assets")
+else:
+    # Fallback if executing the source file directly from the src/ folder tree
+    TEMPLATE_FOLDER = os.path.join(CURRENT_DIR, "templates")
+    ASSETS_FOLDER = os.path.join(CURRENT_DIR, "assets")
+
 _log = logging.getLogger('werkzeug')
 _log.setLevel(logging.ERROR)
-_app = Flask(__name__, template_folder=os.path.join(CURRENT_DIR, "templates"))
+_app = Flask(__name__, template_folder=TEMPLATE_FOLDER)
 
-# Global Frames & System State Cache
+
+# ==========================================================================
+# GLOBAL VARIABLE REGISTRATION (Fixes NameError Scoping)
+# ==========================================================================
 _latest_frame_jpeg = None
 _system_state_snapshot = {"state": "ALONE", "active_task": "Awaiting Stream..."}
 TASK_LEDGER_PATH = os.path.expanduser("~/piper/jetson_nx_mind/task_requests.md")
 
-# Ensure asset directories exist for local biometric matching
-FACES_DIR = os.path.join(CURRENT_DIR, 'assets', 'faces')
+# Set local tracking asset directories
+FACES_DIR = os.path.join(ASSETS_FOLDER, 'faces')
+
 
 # --------------------------------------------------------------------------
 # FLASK WEB ROUTING TIER
