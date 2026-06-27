@@ -6,12 +6,13 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(piper_interfaces REQUIRED)
 
-# This macro automatically packages your entire python tree cleanly!
+# Automatically packages the python tree cleanly
 ament_python_install_package(${PROJECT_NAME})
 
-# Install Python source files and asset directories
+# Install runtime asset directories (face profiles, web templates)
 install(DIRECTORY
   piper_brain/assets
+  piper_brain/templates
   DESTINATION lib/${PROJECT_NAME}/piper_brain
 )
 
@@ -28,25 +29,11 @@ install(PROGRAMS
   RENAME piper_brain_node
 )
 
-# Install the new camera node script
+# Install the workstation UI dashboard node script
 install(PROGRAMS
-  piper_brain/camera_node.py
+  piper_brain/dashboard_node.py
   DESTINATION lib/${PROJECT_NAME}
-  RENAME camera_node
-)
-
-# Install the servo hardware actuator node script
-install(PROGRAMS
-  piper_brain/servo_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME servo_node
-)
-
-# Install the vision tracking node script
-install(PROGRAMS
-  piper_brain/vision_tracking_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME vision_tracking_node
+  RENAME dashboard_node
 )
 
 ament_package()
