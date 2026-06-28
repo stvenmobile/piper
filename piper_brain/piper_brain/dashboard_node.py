@@ -2,46 +2,71 @@
 import os
 import sys
 import time
+import json
 import logging
 import subprocess
 import threading
 from flask import Flask, render_template, Response, request, jsonify
 
-# ROS 2 & Vision Imports
+# Pure ROS 2 Resource Index Asset Package Locators
+from ament_index_python.packages import get_package_share_directory
+
+# ROS 2 & Vision Core Imports
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from geometry_msgs.msg import Vector3
+from std_msgs.msg import String
 import cv2
 from cv_bridge import CvBridge
-import face_recognition
 
-# Flask Setup - Point directly to the internal CMake binary tree installation space
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# ==========================================================================
+# PURE ROS 2 PACKAGE SHARE RESOLUTION
+# ==========================================================================
+try:
+    # Dynamically queries the active ament resource map tracker
+    ros_share_root = get_package_share_directory('piper_brain')
+    resolved_template_dir = os.path.join(ros_share_root, "templates")
+    resolved_assets_dir = os.path.join(ros_share_root, "assets")
+except Exception:
+    # Local fallback for quick naked python test executions
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    resolved_template_dir = os.path.join(current_dir, "templates")
+    resolved_assets_dir = os.path.join(current_dir, "assets")
 
-# If running via ros2 launch, we are inside lib/piper_brain/
-# The install(DIRECTORY) puts assets inside lib/piper_brain/piper_brain/
-if os.path.exists(os.path.join(CURRENT_DIR, "piper_brain", "templates")):
-    TEMPLATE_FOLDER = os.path.join(CURRENT_DIR, "piper_brain", "templates")
-    ASSETS_FOLDER = os.path.join(CURRENT_DIR, "piper_brain", "assets")
-else:
-    # Fallback if executing the source file directly from the src/ folder tree
-    TEMPLATE_FOLDER = os.path.join(CURRENT_DIR, "templates")
-    ASSETS_FOLDER = os.path.join(CURRENT_DIR, "assets")
+# --- PATH SANITY CHECK DIAGNOSTIC LOOP ---
+print("\n" + "="*60)
+print(f"[PATH DIAGNOSIS] Target share directory root: {ros_share_root}")
+print(f"[PATH DIAGNOSIS] Looking for templates at:    {resolved_template_dir}")
+print(f"[PATH DIAGNOSIS] Does templates folder exist? {os.path.exists(resolved_template_dir)}")
+if os.path.exists(resolved_template_dir):
+    print(f"[PATH DIAGNOSIS] Found files inside folder:  {os.listdir(resolved_template_dir)}")
+print("="*60 + "\n")
 
+# ==========================================================================
+# FLASK SERVER INITIALIZATION
+# ==========================================================================
+_app = Flask(
+    __name__, 
+    template_folder=resolved_template_dir, 
+    static_folder=resolved_assets_dir, 
+    static_url_path='/assets'
+)
+
+# ==========================================================================
+# GLOBAL VARIABLE REGISTRATION
+# ==========================================================================
 _log = logging.getLogger('werkzeug')
 _log.setLevel(logging.ERROR)
-_app = Flask(__name__, template_folder=TEMPLATE_FOLDER)
-
-
-# ==========================================================================
-# GLOBAL VARIABLE REGISTRATION (Fixes NameError Scoping)
-# ==========================================================================
 _latest_frame_jpeg = None
-_system_state_snapshot = {"state": "ALONE", "active_task": "Awaiting Stream..."}
-TASK_LEDGER_PATH = os.path.expanduser("~/piper/jetson_nx_mind/task_requests.md")
 
-# Set local tracking asset directories
-FACES_DIR = os.path.join(ASSETS_FOLDER, 'faces')
+_system_state_snapshot = {
+    "state": "SOLO", 
+    "active_task": "System running autonomously. Conducting spatial research.",
+    "objects": []
+}
+
+TASK_LEDGER_PATH = os.path.expanduser("~/piper/jetson_nx_mind/task_requests.md")
 
 
 # --------------------------------------------------------------------------
@@ -59,7 +84,7 @@ def video_feed():
             if _latest_frame_jpeg is not None:
                 yield (b"--frame\r\n"
                        b"Content-Type: image/jpeg\r\n\r\n" + _latest_frame_jpeg + b"\r\n")
-            time.sleep(0.04)  # ~25 FPS delivery
+            time.sleep(0.04)
     return Response(_generate_stream(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 @_app.route("/api/state", methods=["GET"])
@@ -70,130 +95,141 @@ def get_state():
 def handle_incoming_command():
     data = request.json or {}
     user_raw_text = data.get("command", "").strip()
-    
     if not user_raw_text:
-        return jsonify({"response": "Empty directive matrix bypassed by parser core."})
+        return jsonify({"response": "Empty matrix bypassed."})
     
-    print(f"\n[DASHBOARD INGEST] Received web console directive: '{user_raw_text}'")
-    
+    print(f"\n[DASHBOARD INGEST] Received directive: '{user_raw_text}'")
     action_keywords = ["task", "run", "write", "build", "map", "test", "calibrate", "execute", "gather", "process"]
-    is_task_declaration = any(kw in user_raw_text.lower() for kw in action_keywords)
-    
-    if is_task_declaration:
+    if any(kw in user_raw_text.lower() for kw in action_keywords):
         try:
             os.makedirs(os.path.dirname(TASK_LEDGER_PATH), exist_ok=True)
             with open(TASK_LEDGER_PATH, "a") as f:
                 f.write(f"\n- [ ] **Task via Dashboard Console ({time.strftime('%Y-%m-%d %H:%M')})**: {user_raw_text}\n")
-            
-            print("[SYSTEM LOG] Launching autonomous OpenCode sub-process shell...")
             cmd_args = ["opencode", "run", f"Please process the task requested by Steve: {user_raw_text}"]
-            
             subprocess.Popen(cmd_args, stdout=sys.stdout, stderr=sys.stderr, preexec_fn=os.setpgrp)
-            response_msg = "Task parsed and appended. OpenCode background sub-process successfully invoked!"
+            response_msg = "Task appended. Background sub-process successfully invoked!"
         except Exception as e:
-            response_msg = f"Failed to delegate background task execution. Error: {str(e)}"
+            response_msg = f"Failed to delegate task. Error: {str(e)}"
     else:
         response_msg = f"Directive acknowledged: '{user_raw_text}'"
-
     return jsonify({"response": response_msg})
 
 
 # --------------------------------------------------------------------------
-# ROS 2 PROCESSING NODE TIER (With Local Workstation Face Recognition)
+# ROS 2 PROCESSING NODE TIER
 # --------------------------------------------------------------------------
 class UM790DashboardNode(Node):
     def __init__(self):
         super().__init__('um790_dashboard_node')
         self.bridge = CvBridge()
-        
-        # Biometric reference caches
-        self.known_face_encodings = []
-        self.known_face_names = []
-        self._load_known_collaborators()
-        
         self.frame_count = 0
-        self.process_every_n_frames = 5  # Offload heavy facial loops
-        self.cached_face_locations = []
-        self.cached_face_names = []
+        self.first_frame_received = False
+        
+        self.data_lock = threading.Lock()
 
-        # Subscribe to cross-machine video stream
-        self.subscription = self.create_subscription(
+        # 1. High-speed video stream pass-through subscriber
+        self.img_sub = self.create_subscription(
             Image,
             '/piper/camera0/image_raw',
             self._image_callback,
             10)
-        self.get_logger().info("UM790 Dashboard Backend active, processing streams over CycloneDDS.")
+            
+        # 2. Jetson Edge YOLO telemetry subscriber
+        self.object_sub = self.create_subscription(
+            String,
+            '/piper/perception/tracked_objects',
+            self._object_callback,
+            10)
+            
+        # 3. Servo Command Publisher
+        self.servo_pub = self.create_publisher(
+            Vector3,
+            '/piper/neck/set_position',
+            10)
+            
+        # --- AUTOMATIC INITIALIZATION SERVO CENTERING ---
+        self.init_centering_thread = threading.Thread(target=self._send_initial_homing_pulse, daemon=True)
+        self.init_centering_thread.start()
+            
+        # FIXED: Variable updated to match definition at the top of the script
+        self.get_logger().info(f"UM790 Dashboard Engine Active. Target Path: {resolved_template_dir}")
 
-    def _load_known_collaborators(self):
-        """Dynamically loads profile images saved locally on the workstation."""
-        if not os.path.exists(FACES_DIR):
-            return
-        for filename in os.listdir(FACES_DIR):
-            if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                path = os.path.join(FACES_DIR, filename)
-                name = os.path.splitext(filename)[0].capitalize()
-                try:
-                    img = face_recognition.load_image_file(path)
-                    encodings = face_recognition.face_encodings(img)
-                    if encodings:
-                        self.known_face_encodings.append(encodings[0])
-                        self.known_face_names.append(name)
-                except Exception as e:
-                    self.get_logger().error(f"Error loading face profile {filename}: {e}")
+    def _send_initial_homing_pulse(self):
+        time.sleep(1.5)
+        try:
+            home_cmd = Vector3()
+            home_cmd.x = 90.0
+            home_cmd.y = 70.0
+            home_cmd.z = 1.0  
+            self.servo_pub.publish(home_cmd)
+            self.get_logger().info("[HARDWARE HOME] Absolute center position vector (90.0, 70.0) transmitted.")
+        except Exception as e:
+            self.get_logger().error(f"Failed to transmit startup homing cycle updates: {e}")
 
     def _image_callback(self, msg):
-        global _latest_frame_jpeg, _system_state_snapshot
+        global _latest_frame_jpeg
+        if not self.first_frame_received:
+            self.get_logger().info(f"[STREAM LIVE] Processing continuous camera frames... Format: '{msg.encoding}'")
+            self.first_frame_received = True
+            
         self.frame_count += 1
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            raw_mat = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            if msg.encoding.lower() in ['yuyv', 'yuv422', 'yuy2']:
+                cv_image = cv2.cvtColor(raw_mat, cv2.COLOR_YUV2BGR_YUY2)
+            else:
+                cv_image = cv2.cvtColor(raw_mat, cv2.COLOR_RGB2BGR) if 'rgb' in msg.encoding.lower() else raw_mat
         except Exception:
             return
 
-        # Heavy AI Facial Inference (Executed cleanly on your UM790 Pro CPU cores)
-        if self.frame_count % self.process_every_n_frames == 0:
-            small_frame = cv2.resize(cv_image, (0, 0), fx=0.25, fy=0.25)
-            rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
-            
-            self.cached_face_locations = face_recognition.face_locations(rgb_small_frame)
-            face_encodings = face_recognition.face_encodings(rgb_small_frame, self.cached_face_locations)
-            
-            self.cached_face_names = []
-            steve_found = False
-            
-            for face_encoding in face_encodings:
-                matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding, tolerance=0.6)
-                name = "Unknown"
-                if True in matches:
-                    name = self.known_face_names[matches.index(True)]
-                    if name == "Steve":
-                        steve_found = True
-                self.cached_face_names.append(name)
-            
-            # Update global state definitions exported to the web UI
-            if steve_found:
-                _system_state_snapshot["state"] = "ENGAGED"
-                _system_state_snapshot["active_task"] = "Collaborator Verified. Monitoring OpenCode Queue."
-            else:
-                _system_state_snapshot["state"] = "ALONE"
-                _system_state_snapshot["active_task"] = "Conducting Spatial Research: Mapping Matrix Deltas"
+        if cv_image is None or cv_image.size == 0:
+            return
 
-        # Overlay face tracking boxes onto visual stream frame
-        for (top, right, bottom, left), name in zip(self.cached_face_locations, self.cached_face_names):
-            top *= 4; right *= 4; bottom *= 4; left *= 4
-            cv2.rectangle(cv_image, (left, top), (right, bottom), (0, 255, 0), 2)
-            cv2.putText(cv_image, name, (left + 6, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-        # Compress to JPEG for high performance Flask streaming browser injection
+        # Direct, unblocked compression right to the Flask buffer array
         ret, jpeg = cv2.imencode('.jpg', cv_image)
         if ret:
             _latest_frame_jpeg = jpeg.tobytes()
+
+    def _object_callback(self, msg):
+        """Processes live object lists from the Jetson's YOLO node asynchronously."""
+        worker = threading.Thread(target=self._parse_object_payload, args=(msg.data,), daemon=True)
+        worker.start()
+
+    def _parse_object_payload(self, raw_string_data):
+        global _system_state_snapshot
+        try:
+            telemetry_data = json.loads(raw_string_data)
+            detected_objects = telemetry_data.get("objects", [])
+            current_labels = [obj.get("label", "unknown") for obj in detected_objects]
+            unique_labels = list(set(current_labels))
+            
+            with self.data_lock:
+                _system_state_snapshot["objects"] = unique_labels
+                previous_state = _system_state_snapshot["state"]
+                
+                if "person" in unique_labels:
+                    new_state = "TEAMING"
+                    new_task = "Collaborator tracked via Edge YOLO arrays. Ready for console tasking."
+                else:
+                    new_state = "SOLO"
+                    new_task = "System running autonomously. Conducting spatial research."
+
+                if previous_state != new_state:
+                    self.get_logger().info(f"[EDGE YOLO TRANSITION] '{previous_state}' -> '{new_state}'")
+
+                _system_state_snapshot["state"] = new_state
+                _system_state_snapshot["active_task"] = new_task
+        except Exception:
+            pass
 
 
 def run_ros_loop():
     rclpy.init()
     node = UM790DashboardNode()
     try:
-        rclpy.spin(node)
+        executor = rclpy.executors.MultiThreadedExecutor()
+        executor.add_node(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
@@ -201,9 +237,6 @@ def run_ros_loop():
         rclpy.shutdown()
 
 if __name__ == "__main__":
-    # Spin up ROS2 stream subscriber in its own independent background thread
     ros_thread = threading.Thread(target=run_ros_loop, daemon=True)
     ros_thread.start()
-    
-    # Run Flask infrastructure server directly on local loopback port
     _app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)

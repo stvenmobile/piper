@@ -10,6 +10,23 @@
     <div class="video-container" style="text-align: center; margin-bottom: 20px;">
         <img src="/video_feed" alt="Piper Live Stream" style="width: 100%; max-width: 1280px; border: 1px solid #00ff00; border-radius: 4px;" />
     </div>
+    </div><div class="status-container" style="margin-bottom: 15px; padding: 10px; background-color: #1e1e24; border-radius: 5px; border-left: 5px solid #00ff00;">
+        <h3 style="margin: 0; color: #ffffff;">System Mode: 
+            <span id="current-state" style="color: #00ff00; font-weight: bold;">SOLO</span>
+        </h3>
+        <p id="active-task" style="margin: 5px 0 0 0; color: #a0a0a0; font-size: 0.9em;">Awaiting stream telemetry...</p>
+    </div>
+    <div class="telemetry-grid" style="display: flex; gap: 20px; margin-bottom: 20px;">
+    <div class="status-container" style="flex: 1; padding: 15px; background-color: #1e1e24; border-radius: 5px; border-left: 5px solid #ffcc00;">
+        <h3 style="margin: 0; color: #ffffff;">System Mode: <span id="current-state" style="color: #ffcc00; font-weight: bold;">SOLO</span></h3>
+        <p id="active-task" style="margin: 5px 0 0 0; color: #a0a0a0; font-size: 0.9em;">Awaiting stream telemetry...</p>
+    </div>
+    <div class="objects-container" style="flex: 1; padding: 15px; background-color: #1e1e24; border-radius: 5px; border-left: 5px solid #3399ff;">
+        <h3 style="margin: 0; color: #ffffff;">Objects Currently in View</h3>
+        <ul id="object-list" style="margin: 8px 0 0 0; padding-left: 20px; color: #00ff00; font-family: monospace; font-size: 1.1em;">
+            <li style="color: #a0a0a0;">No objects detected...</li>
+        </ul>
+    </div>
 </div>
 
 <script>
@@ -43,4 +60,42 @@ function submitCommand() {
 document.getElementById('cmd-input').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') submitCommand();
 });
+</script>
+<script>
+    function updateSystemState() {
+        fetch('/api/state')
+            .then(response => response.json())
+            .then(data => {
+                // 1. Update State Text
+                const stateSpan = document.getElementById('current-state');
+                const taskP = document.getElementById('active-task');
+                stateSpan.innerText = data.state;
+                taskP.innerText = data.active_task;
+
+                if (data.state === "TEAMING") {
+                    stateSpan.style.color = "#00ff00";
+                } else if (data.state === "CHATTING") {
+                    stateSpan.style.color = "#3399ff";
+                } else {
+                    stateSpan.style.color = "#ffcc00";
+                }
+
+                // 2. Update Active Object Ledger
+                const listContainer = document.getElementById('object-list');
+                listContainer.innerHTML = ""; // Flush old items
+
+                if (!data.objects || data.objects.length === 0) {
+                    listContainer.innerHTML = `<li style="color: #a0a0a0;">No objects detected...</li>`;
+                } else {
+                    data.objects.forEach(obj => {
+                        const li = document.createElement('li');
+                        // Capitalize labels nicely
+                        li.innerText = obj.charAt(0).toUpperCase() + obj.slice(1);
+                        listContainer.appendChild(li);
+                    });
+                }
+            })
+            .catch(err => console.error('Error fetching dashboard telemetry matrix:', err));
+    }
+    setInterval(updateSystemState, 400); // Check every 400ms
 </script>

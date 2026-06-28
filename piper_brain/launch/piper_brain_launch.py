@@ -3,21 +3,21 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        # 1. Cognitive Priority Queue Core & Action Server
+        # Your supervisor node stays active
         Node(
             package='piper_brain',
             executable='piper_brain_node',
             name='piper_brain_node',
-            output='screen',
-            emulate_tty=True
+            output='screen'
         ),
-        
-        # 2. Workstation Flask Web Interface & Local Biometrics Node
+        # Replace the Flask dashboard with the native Foxglove Bridge
         Node(
-            package='piper_brain',
-            executable='dashboard_node',
-            name='um790_dashboard_node',
-            output='screen',
-            emulate_tty=True
+            package='foxglove_bridge',
+            executable='foxglove_bridge',
+            name='foxglove_bridge',
+            parameters=[{
+                'port': 8765,
+                'send_buffer_limit': 10000000 # High ceiling for raw video matrices
+            }]
         )
     ])

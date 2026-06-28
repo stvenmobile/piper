@@ -1,37 +1,54 @@
-import os
-from glob import glob
 from setuptools import find_packages, setup
+import os
 
 package_name = 'piper_brain'
 
+# --- CLEAN ASSET EXTRACTION TREE ---
+def get_flat_data_files(source_dir, target_share_path):
+    """
+    Walks the source directory and strips prefixes so files copy 
+    directly into the root of the target share path destination.
+    """
+    data_files_map = []
+    for root, dirs, filenames in os.walk(source_dir):
+        for filename in filenames:
+            source_file_path = os.path.join(root, filename)
+            
+            # Calculate where this file should drop relative to the share destination
+            relative_path = os.path.relpath(root, source_dir)
+            if relative_path == ".":
+                destination_dir = target_share_path
+            else:
+                destination_dir = os.path.join(target_share_path, relative_path)
+                
+            data_files_map.append((destination_dir, [source_file_path]))
+    return data_files_map
+
+# Build direct target destination mappings
+data_files_list = [
+    ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+    ('share/' + package_name, ['package.xml']),
+]
+
+# Dynamically append flattened front-end files
+data_files_list.extend(get_flat_data_files('piper_brain/templates', 'share/' + package_name + '/templates'))
+data_files_list.extend(get_flat_data_files('piper_brain/assets', 'share/' + package_name + '/assets'))
+
 setup(
     name=package_name,
-    version='0.0.0',
+    version='0.0.1',
     packages=find_packages(exclude=['test']),
-    data_files=[
-        ('share/ament_index/resource_index/packages',
-            ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
-        # 1. Include launch files
-        (os.path.join('share', package_name, 'launch'), glob('launch/*_launch.py')),
-        # 2. Include HTML template layouts for the Flask server
-        (os.path.join('share', package_name, 'piper_brain/templates'), glob('piper_brain/templates/*.html')),
-        # 3. Include local asset templates for facial recognition matches
-        (os.path.join('share', package_name, 'piper_brain/assets/faces'), glob('piper_brain/assets/faces/*.jpg')),
-    ],
+    data_files=data_files_list,
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='steve',
-    maintainer_email='stvenmobile@gmail.com',
-    description='Piper Brain Cognition Tier Node',
+    maintainer_email='steve@todo.todo',
+    description='Decoupled Object Telemetry Dashboard Core for Piper Assistant Stack',
     license='TODO: License declaration',
-    extras_require={
-        'test': ['pytest'],
-    },
+    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'piper_brain_node = piper_brain.piper_brain_node:main',
-            'dashboard_node = piper_brain.dashboard_node:main',
+            'dashboard_node = piper_brain.dashboard_node:main'
         ],
     },
 )
