@@ -10,14 +10,11 @@ def generate_launch_description():
             name='piper_brain_node',
             output='screen'
         ),
-        # Replace the Flask dashboard with the native Foxglove Bridge
+        # FIX: Change 'dashboard_node.py' to 'dashboard_node' to match your setup.py entry point!
         Node(
-            package='foxglove_bridge',
-            executable='foxglove_bridge',
-            name='foxglove_bridge',
-            parameters=[{
-                'port': 8765,
-                'send_buffer_limit': 10000000 # High ceiling for raw video matrices
-            }]
+            package='piper_brain',
+            executable='dashboard_node', 
+            name='um790_dashboard_node',
+            output='screen'
         )
     ])

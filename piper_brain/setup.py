@@ -3,7 +3,6 @@ import os
 
 package_name = 'piper_brain'
 
-# --- CLEAN ASSET EXTRACTION TREE ---
 def get_flat_data_files(source_dir, target_share_path):
     """
     Walks the source directory and strips prefixes so files copy 
@@ -14,7 +13,6 @@ def get_flat_data_files(source_dir, target_share_path):
         for filename in filenames:
             source_file_path = os.path.join(root, filename)
             
-            # Calculate where this file should drop relative to the share destination
             relative_path = os.path.relpath(root, source_dir)
             if relative_path == ".":
                 destination_dir = target_share_path
@@ -48,7 +46,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'dashboard_node = piper_brain.dashboard_node:main'
+            'piper_brain_node = piper_brain.piper_brain_node:main',
+            # REMOVE the '.py' extension from the command name key
+            'dashboard_node = piper_brain.dashboard_node:run_ros_loop'
         ],
     },
 )

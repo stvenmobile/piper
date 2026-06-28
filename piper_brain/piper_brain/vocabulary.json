@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "verbs": {
+    "scan": {
+      "description": "Executes a 4-point square boundary scan (40 deg wide x 20 deg tall) to index spatial object locations.",
+      "waypoints": [
+        {"id": "P1", "position": "top_left", "pan_offset": 20.0, "tilt_offset": 10.0},
+        {"id": "P2", "position": "top_right", "pan_offset": -20.0, "tilt_offset": 10.0},
+        {"id": "P3", "position": "bottom_right", "pan_offset": -20.0, "tilt_offset": -10.0},
+        {"id": "P4", "position": "bottom_left", "pan_offset": 20.0, "tilt_offset": -10.0}
+      ]
+    }
+  }
+}
