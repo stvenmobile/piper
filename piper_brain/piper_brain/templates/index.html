@@ -1,46 +1,456 @@
-<div class="card" id="agent-terminal" style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-top: 20px; font-family: monospace;">
-    <h2 style="color: #ffa500; margin-top: 0;">&#9670; Piper Task Command Console</h2>
-    <div id="terminal-history" style="height: 180px; overflow-y: auto; background: #010409; padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: left; color: #58a6ff; border: 1px solid #21262d; line-height: 1.4;">
-        <span style="color: #8b949e;">[SYSTEM] Interface initialized. Standing by for direct user tasking...</span>
-    </div>
-    <div style="display: flex; gap: 10px;">
-        <input type="text" id="cmd-input" placeholder="Ask a question or specify a new automated research task..." style="flex-grow: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px;">
-        <button onclick="submitCommand()" style="background: #238636; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 14px;">Execute</button>
-    </div>
-    <div class="video-container" style="text-align: center; margin-bottom: 20px;">
-        <img src="/video_feed" alt="Piper Live Stream" style="width: 100%; max-width: 1280px; border: 1px solid #00ff00; border-radius: 4px;" />
-    </div>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piper Matrix Dashboard</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
 
-<script>
-function submitCommand() {
-    let inputEl = document.getElementById('cmd-input');
-    let historyEl = document.getElementById('terminal-history');
-    let text = inputEl.value.trim();
-    if(!text) return;
-    
-    // Print user entry locally instantly
-    historyEl.innerHTML += "<br><span style='color:#79c0ff;'>&gt; Steve:</span> " + text;
-    historyEl.scrollTop = historyEl.scrollHeight;
-    
-    fetch('/api/command', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ command: text })
-    })
-    .then(res => res.json())
-    .then(data => {
-        historyEl.innerHTML += "<br><span style='color:#56d364;'>&gt; Piper:</span> " + data.response;
-        historyEl.scrollTop = historyEl.scrollHeight;
-    })
-    .catch(err => {
-        historyEl.innerHTML += "<br><span style='color:#f85149;'>[ERROR] Failed to dispatch directive to backend routing core.</span>";
-    });
-    inputEl.value = '';
-}
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
 
-// Allow pressing 'Enter' key inside the text field to submit
-document.getElementById('cmd-input').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') submitCommand();
-});
-</script>
+        /* --- Terminal & Video Stream Styling --- */
+        .card {
+            background: #161b22; 
+            border: 1px solid #30363d; 
+            border-radius: 8px; 
+            padding: 20px;
+            font-family: monospace;
+        }
+
+        .video-container {
+            position: relative;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            display: inline-block;
+            width: 100%;
+            max-width: 1280px;
+        }
+
+        .video-container img {
+            width: 100%; 
+            height: auto;
+            border: 1px solid #30363d; 
+            border-radius: 6px;
+            display: block;
+        }
+
+        .tracking-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* --- Manual D-Pad Controller Layout --- */
+        .jog-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #0d1117;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #21262d;
+            margin-bottom: 15px;
+        }
+        
+        .jog-row {
+            display: flex;
+            gap: 12px;
+            margin: 5px 0;
+        }
+
+        .btn-jog {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            cursor: pointer;
+            min-width: 80px;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .btn-jog:hover {
+            background: #30363d;
+            color: #58a6ff;
+            border-color: #58a6ff;
+        }
+
+        /* --- Telemetry Components --- */
+        .telemetry-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .status-container {
+            padding: 15px; 
+            background-color: #1e1e24; 
+            border-radius: 6px; 
+            border-left: 5px solid #ffcc00;
+            transition: border-color 0.3s ease;
+        }
+
+        .panel-container {
+            padding: 20px; 
+            background-color: #161b22; 
+            border-radius: 8px; 
+            border: 1px solid #30363d;
+        }
+
+        .panel-title {
+            margin-top: 0; 
+            color: #ffffff;
+            font-size: 1.15rem;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .object-ul {
+            margin: 0; 
+            padding-left: 20px; 
+            color: #58a6ff; 
+            font-family: monospace; 
+            font-size: 1.1em;
+            line-height: 1.5;
+            list-style-type: square;
+        }
+
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #0d1117;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            border-left: 4px solid #238636;
+            font-size: 0.95rem;
+            font-family: monospace;
+        }
+
+        .history-item .object-name {
+            font-weight: bold;
+            color: #c9d1d9;
+            text-transform: capitalize;
+        }
+
+        .history-item .timestamp {
+            color: #8b949e;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        .history-item .badge {
+            background: #21262d;
+            color: #58a6ff;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            border: 1px solid #30363d;
+        }
+
+        /* --- Scan Grid Layout Panel --- */
+        .scan-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-family: monospace;
+        }
+
+        .scan-quadrant {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .quadrant-title {
+            color: #ffa500;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 2px;
+        }
+
+        .quadrant-data {
+            color: #58a6ff;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-layout">
+        
+        <div class="control-stream-block">
+            <div class="card" id="agent-terminal">
+                <h2 style="color: #ffa500; margin-top: 0;">&#9670; Piper Task Command Console</h2>
+                
+                <div id="terminal-history" style="height: 140px; overflow-y: auto; background: #010409; padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: left; color: #58a6ff; border: 1px solid #21262d; line-height: 1.4;">
+                    <span style="color: #8b949e;">[SYSTEM] Interface initialized. Standing by for direct user tasking...</span>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="cmd-input" placeholder="Ask a question or specify a new automated research task..." style="flex-grow: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px;">
+                    <button onclick="submitCommand()" style="background: #238636; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 14px;">Execute</button>
+                </div>
+                
+                <div class="video-container">
+                    <img id="streamVideo" src="/video_feed" alt="Piper Live Stream" />
+                    <canvas id="trackingCanvas" class="tracking-canvas"></canvas>
+                </div>
+
+                <div class="jog-panel">
+                    <div style="color: #8b949e; font-size: 0.85rem; margin-bottom: 8px; font-weight: bold;">MANUAL NECK SERVO OVERRIDE</div>
+                    <div class="jog-row">
+                        <button class="btn-jog" onclick="jog('up')">▲ UP</button>
+                    </div>
+                    <div class="jog-row">
+                        <button class="btn-jog" onclick="jog('left')">◀ LEFT</button>
+                        <button class="btn-jog" onclick="jog('right')">RIGHT ▶</button>
+                    </div>
+                    <div class="jog-row">
+                        <button class="btn-jog" onclick="jog('down')">▼ DOWN</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="telemetry-sidebar">
+            
+            <div class="status-container" id="status-card-accent">
+                <h3 style="margin: 0; color: #ffffff;">System Mode: 
+                    <span id="current-state" style="color: #ffcc00; font-weight: bold;">SOLO</span>
+                </h3>
+                <p id="active-task" style="margin: 5px 0 0 0; color: #8b949e; font-size: 0.9em;">Awaiting stream telemetry...</p>
+            </div>
+
+            <div class="panel-container">
+                <h3 class="panel-title">Objects Currently in View</h3>
+                <ul id="object-list" class="object-ul">
+                    <li style="color: #8b949e;">No objects detected...</li>
+                </ul>
+            </div>
+
+            <div class="panel-container">
+                <h3 class="panel-title" style="color: #ffa500;">Active World Model Matrix</h3>
+                <div class="scan-grid">
+                    <div class="scan-quadrant">
+                        <div class="quadrant-title">P1: TOP-LEFT</div>
+                        <div id="quad-p1" class="quadrant-data">Empty</div>
+                    </div>
+                    <div class="scan-quadrant">
+                        <div class="quadrant-title">P2: TOP-RIGHT</div>
+                        <div id="quad-p2" class="quadrant-data">Empty</div>
+                    </div>
+                    <div class="scan-quadrant">
+                        <div class="scan-quadrant-title" style="color: #ffa500; font-weight: bold; font-size: 0.85rem; margin-bottom: 5px; border-bottom: 1px solid #21262d; padding-bottom: 2px;">P4: BOTTOM-LEFT</div>
+                        <div id="quad-p4" class="quadrant-data">Empty</div>
+                    </div>
+                    <div class="scan-quadrant">
+                        <div class="quadrant-title">P3: BOTTOM-RIGHT</div>
+                        <div id="quad-p3" class="quadrant-data">Empty</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-container">
+                <h3 class="panel-title">Session Persistence Ledger (SQLite)</h3>
+                <ul id="object-history-timeline" class="history-list">
+                    </ul>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        function submitCommand() {
+            let inputEl = document.getElementById('cmd-input');
+            let historyEl = document.getElementById('terminal-history');
+            let text = inputEl.value.trim();
+            if(!text) return;
+            
+            historyEl.innerHTML += "<br><span style='color:#79c0ff;'>&gt; Steve:</span> " + text;
+            historyEl.scrollTop = historyEl.scrollHeight;
+            
+            fetch('/api/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ command: text })
+            })
+            .then(res => res.json())
+            .then(data => {
+                historyEl.innerHTML += "<br><span style='color:#56d364;'>&gt; Piper:</span> " + data.response;
+                historyEl.scrollTop = historyEl.scrollHeight;
+            })
+            .catch(err => {
+                historyEl.innerHTML += "<br><span style='color:#f85149;'>[ERROR] Failed to dispatch directive to backend routing core.</span>";
+            });
+            inputEl.value = '';
+        }
+
+        document.getElementById('cmd-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') submitCommand();
+        });
+
+        function jog(dir) {
+            fetch('/api/jog', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ direction: dir, step: 5.0 })
+            })
+            .catch(err => console.error("Failed to forward manual servo step command:", err));
+        }
+
+        // ------------------------------------------------------------------
+        // TELEMETRY REFRESH SYNC LOOP
+        // ------------------------------------------------------------------
+        function updateSystemState() {
+            fetch('/api/state')
+                .then(response => response.json())
+                .then(data => {
+                    const stateSpan = document.getElementById('current-state');
+                    const taskP = document.getElementById('active-task');
+                    const cardAccent = document.getElementById('status-card-accent');
+                    
+                    stateSpan.innerText = data.state;
+                    taskP.innerText = data.active_task;
+
+                    if (data.state === "TEAMING") {
+                        stateSpan.style.color = "#56d364";
+                        cardAccent.style.borderLeftColor = "#56d364";
+                    } else {
+                        stateSpan.style.color = "#ffcc00";
+                        cardAccent.style.borderLeftColor = "#ffcc00";
+                    }
+
+                    const listContainer = document.getElementById('object-list');
+                    listContainer.innerHTML = ""; 
+
+                    if (!data.objects || data.objects.length === 0) {
+                        listContainer.innerHTML = `<li style="color: #8b949e;">No objects detected...</li>`;
+                    } else {
+                        data.objects.forEach(obj => {
+                            const li = document.createElement('li');
+                            li.style.color = "#58a6ff";
+                            li.innerText = obj.charAt(0).toUpperCase() + obj.slice(1);
+                            listContainer.appendChild(li);
+                        });
+                    }
+
+                    // --- PERSISTENT DISCOVERY MATRIX MAP ENHANCEMENT ---
+                    if (data.matrix_report) {
+                        const m = data.matrix_report;
+                        document.getElementById('quad-p1').innerText = m.P1_Top_Left && m.P1_Top_Left.length ? m.P1_Top_Left.join(', ') : 'None';
+                        document.getElementById('quad-p2').innerText = m.P2_Top_Right && m.P2_Top_Right.length ? m.P2_Top_Right.join(', ') : 'None';
+                        document.getElementById('quad-p3').innerText = m.P3_Bottom_Right && m.P3_Bottom_Right.length ? m.P3_Bottom_Right.join(', ') : 'None';
+                        document.getElementById('quad-p4').innerText = m.P4_Bottom_Left && m.P4_Bottom_Left.length ? m.P4_Bottom_Left.join(', ') : 'None';
+                    }
+
+                    // --- CANVAS OVERLAY BOUNDING BOXES ---
+                    const img = document.getElementById('streamVideo');
+                    const canvas = document.getElementById('trackingCanvas');
+                    const ctx = canvas.getContext('2d');
+
+                    if (img.clientWidth === 0 || img.clientHeight === 0) return;
+
+                    canvas.width = img.clientWidth;
+                    canvas.height = img.clientHeight;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    if (data.boxes && data.boxes.length > 0) {
+                        const scaleX = canvas.width / 640.0;
+                        const scaleY = canvas.height / 480.0;
+
+                        data.boxes.forEach(box => {
+                            const x = box.xmin * scaleX;
+                            const y = box.ymin * scaleY;
+                            const w = (box.xmax - box.xmin) * scaleX;
+                            const h = (box.ymax - box.ymin) * scaleY;
+
+                            ctx.strokeStyle = '#56d364';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(x, y, w, h);
+
+                            ctx.fillStyle = '#56d364';
+                            ctx.font = 'bold 12px monospace';
+                            const text = `${box.label.toUpperCase()} (${box.confidence}%)`;
+                            const textWidth = ctx.measureText(text).width;
+                            ctx.fillRect(x, y - 18 > 0 ? y - 18 : 0, textWidth + 10, 18);
+
+                            ctx.fillStyle = '#0d1117';
+                            ctx.fillText(text, x + 5, y - 5 > 13 ? y - 5 : 13);
+                        });
+                    }
+                })
+                .catch(err => console.error('Error fetching dashboard telemetry matrix:', err));
+        }
+
+        function updateHistoricalLedger() {
+            fetch('/api/history')
+                .then(response => response.json())
+                .then(data => {
+                    const historyContainer = document.getElementById('object-history-timeline');
+                    historyContainer.innerHTML = "";
+                    
+                    if (data.history && data.history.length > 0) {
+                        data.history.forEach(item => {
+                            const li = document.createElement('li');
+                            li.className = 'history-item';
+                            li.innerHTML = `
+                                <div>
+                                    <span class="object-name">${item.label}</span>
+                                    <div class="timestamp">Last seen: ${item.last_seen} | Confidence: <span style="color: #56d364;">${item.confidence}%</span></div>
+                                </div>
+                                <span class="badge">x${item.count}</span>
+                            `;
+                            historyContainer.appendChild(li);
+                        });
+                    } else {
+                        historyContainer.innerHTML = '<li class="history-item" style="border-left-color: #30363d; color: #8b949e;">No relational logs stored yet.</li>';
+                    }
+                })
+                .catch(err => console.error('Error synchronizing database timeline map:', err));
+        }
+
+        setInterval(updateSystemState, 400);       
+        setInterval(updateHistoricalLedger, 1500);  
+        
+        updateSystemState();
+        updateHistoricalLedger();
+    </script>
+</body>
+</html>
