@@ -5,12 +5,12 @@ import cv2
 import threading
 import time
 import os
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 
 
 class CameraStream:
-    def __init__(self, src=1):  # Mounted securely at /dev/video1
+    def __init__(self, src=0):  # Mounted securely at /dev/video1
         self.src = src
         self.grabbed = False
         self.frame = None
@@ -31,6 +31,8 @@ class CameraStream:
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=white_balance_automatic=1")
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=focus_absolute=208")
 
+        time.sleep(1.0) # Allows the V4L2 hardware registers to settle safely
+        
         self.stream = cv2.VideoCapture(self.src, cv2.CAP_V4L2)
         
         # Lock camera pipeline properties to the low-latency stream matrix
@@ -95,28 +97,52 @@ class PiperCameraNode(Node):
         super().__init__('piper_camera_node')
         self.get_logger().info("Initializing Piper Resilient Camera Node Layer...")
 
+        # Maintain both streams for maximum system design flexibility
         self.pub_cam0 = self.create_publisher(Image, '/piper/camera0/image_raw', 10)
+        self.compressed_image_pub = self.create_publisher(
+            CompressedImage, 
+            '/piper/camera0/image_raw/compressed', 
+            10
+        )
+
         self.bridge = CvBridge()
 
         self.get_logger().info("Starting Camera 1 setup...")
-        self.cam0 = CameraStream(1)
+        self.cam0 = CameraStream(0)
         time.sleep(2.0)
         self.cam0.start()
 
         # Broadcast timer: 30 FPS framing loop
         self.timer = self.create_timer(0.033, self._publish_frames)
-        self.get_logger().info("Single Camera Node actively broadcasting at 30 FPS.")
+        self.get_logger().info("Single Camera Node actively broadcasting raw and compressed channels at 30 FPS.")
 
     def _publish_frames(self):
         success0, frame0 = self.cam0.read()
         if success0 and frame0 is not None:
+            current_time = self.get_clock().now().to_msg()
+            
+            # 1. Handle Raw Data Stream (Local node usage)
             try:
                 msg0 = self.bridge.cv2_to_imgmsg(frame0, encoding="bgr8")
-                msg0.header.stamp = self.get_clock().now().to_msg()
+                msg0.header.stamp = current_time
                 msg0.header.frame_id = "camera0_link"
                 self.pub_cam0.publish(msg0)
             except Exception as e:
                 self.get_logger().warn(f"Failed to serialize frame data matrix to ROS 2 Image msg: {e}")
+
+            # 2. Handle Highly-Compressed JPEG Stream (Foxglove WebSocket usage)
+            try:
+                # Target a 90% JPEG quality scale to clear out network socket buffer chokes
+                success, encoded_image = cv2.imencode('.jpg', frame0, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                if success:
+                    comp_msg = CompressedImage()
+                    comp_msg.header.stamp = current_time
+                    comp_msg.header.frame_id = "camera0_link"
+                    comp_msg.format = "jpeg"
+                    comp_msg.data = encoded_image.tobytes()
+                    self.compressed_image_pub.publish(comp_msg)
+            except Exception as e:
+                self.get_logger().warn(f"Failed to compress frame data matrix to ROS 2 CompressedImage msg: {e}")
 
     def destroy_node(self):
         self.get_logger().info("Stopping physical camera stream...")
