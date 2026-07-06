@@ -40,6 +40,13 @@ install(PROGRAMS
   RENAME vision_tracking_node
 )
 
+# Install the vision tracking node script
+install(PROGRAMS
+  piper_drivers/vision_tracking_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME vision_tracking_node
+)
+
 # ==========================================================================
 # ASSET & CONFIGURATION REGISTRATION TIER
 # ==========================================================================

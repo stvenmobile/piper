@@ -10,7 +10,7 @@ from cv_bridge import CvBridge
 
 
 class CameraStream:
-    def __init__(self, src=0):  # Can be 0 or 1 dynamically
+    def __init__(self, src=1):  # Statically locked to our verified Index 1
         self.src = src
         self.grabbed = False
         self.frame = None
@@ -22,12 +22,17 @@ class CameraStream:
         # Inject custom hardware baseline parameters before opening the capture handle
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=auto_exposure=3 > /dev/null 2>&1")
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=brightness=20 > /dev/null 2>&1")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=contrast=20 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=contrast=30 > /dev/null 2>&1")
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=hue=40 > /dev/null 2>&1")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gamma=150 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gamma=120 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=saturation=100 > /dev/null 2>&1")
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gain=40 > /dev/null 2>&1")
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=power_line_frequency=2 > /dev/null 2>&1")
+        
+        # --- FIXED COLOR SETTINGS ---
+        # Re-enable full Automatic White Balance handling for natural colors
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=white_balance_automatic=1 > /dev/null 2>&1")
+        
         os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=focus_absolute=208 > /dev/null 2>&1")
 
         time.sleep(0.5) # Allows the V4L2 hardware registers to settle safely
@@ -103,23 +108,21 @@ class PiperCameraNode(Node):
         self.bridge = CvBridge()
         self.cam0 = None
 
-        # --- DYNAMIC AUTO-DETECTION PORT LOOP ---
-        candidate_indexes = [0, 1]
-        for idx in candidate_indexes:
-            self.get_logger().info(f"Probing hardware bus: /dev/video{idx}...")
-            attempt = CameraStream(idx)
-            
-            if attempt.stream.isOpened() and attempt.grabbed:
-                self.cam0 = attempt
-                self.get_logger().info(f"SUCCESS: Arducam locked and verified on /dev/video{idx}!")
-                break
-            else:
-                self.get_logger().warn(f"Port /dev/video{idx} offline or non-responsive. Advancing probe matrix...")
-                attempt.stop() # Clean up stale open resource handle immediately
+        # --- BIND STRICLY TO VERIFIED DATA BUS ---
+        # Bypasses the old device-swapping probe matrix loop entirely
+        TARGET_INDEX = 1
+        self.get_logger().info(f"Targeting active video channel bus: /dev/video{TARGET_INDEX}...")
+        
+        attempt = CameraStream(TARGET_INDEX)
+        if attempt.stream.isOpened() and attempt.grabbed:
+            self.cam0 = attempt
+            self.get_logger().info(f"SUCCESS: Arducam locked and verified on /dev/video{TARGET_INDEX}!")
+        else:
+            attempt.stop()
 
         # Final Verification Guard
         if self.cam0 is None:
-            self.get_logger().error("CRITICAL ERROR: No responsive video devices found across target profiles (/dev/video0, /dev/video1)!")
+            self.get_logger().error(f"CRITICAL ERROR: Arducam hardware missing or unbound at /dev/video{TARGET_INDEX}!")
             raise RuntimeError("Hardware Bus Error: Camera completely missing or unbound.")
 
         time.sleep(1.0)
@@ -176,7 +179,6 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        # Check if node was successfully created before invoking destruction logic
         if 'node' in locals():
             node.destroy_node()
         if rclpy.ok():

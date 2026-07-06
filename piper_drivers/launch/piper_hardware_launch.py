@@ -1,8 +1,7 @@
 import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import RegisterEventHandler
-from launch.event_handlers import OnProcessStart
+from launch.actions import TimerAction
 
 def generate_launch_description():
     
@@ -15,7 +14,13 @@ def generate_launch_description():
         emulate_tty=True
     )
     
-    # 2. Servo Node Actuator Layer
+    # ⏳ Hold the camera back for 5 seconds to let the servo sweep clear out
+    delayed_camera_node = TimerAction(
+        period=5.0,
+        actions=[camera_node]
+    )
+    
+    # 2. Servo Node Actuator Layer (Starts instantly)
     servo_node = Node(
         package='piper_drivers',
         executable='servo_node',
@@ -33,19 +38,18 @@ def generate_launch_description():
         emulate_tty=True
     )
     
-    # 4. Sequential Event Handler:
-    # This prevents the GStreamer race condition by waiting for the camera_node
-    # to register its process ID before initializing the YOLO network layers.
-    delay_vision_tracker = RegisterEventHandler(
-        event_handler=OnProcessStart(
-            target_action=camera_node,
-            on_start=[vision_tracking_node]
-        )
+    # ⏳ Hold the Vision Tracker back for 10 seconds total.
+    # This guarantees the camera node has been streaming cleanly for 5 full seconds
+    # before the GPU experiences a heavy power draw from loading YOLO layers.
+    delayed_vision_tracker = TimerAction(
+        period=10.0,
+        actions=[vision_tracking_node]
     )
+
 
     # Return the coordinated launch schedule
     return LaunchDescription([
-        camera_node,
         servo_node,
-        delay_vision_tracker
+        delayed_camera_node,
+        delayed_vision_tracker
     ])
