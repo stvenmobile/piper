@@ -49,3 +49,8 @@ piper_brain/world_model_definition.md
 # Credentials & Hardware Specific Environments
 .env
 *.env
+
+**/sketchbook/*.jpg
+**/sketchbook/*.png
+**/*.db
+**/*.pt
