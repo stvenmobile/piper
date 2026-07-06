@@ -217,13 +217,24 @@
             <div class="card" id="agent-terminal">
                 <h2 style="color: #ffa500; margin-top: 0;">&#9670; Piper Task Command Console</h2>
                 
-                <div id="terminal-history" style="height: 140px; overflow-y: auto; background: #010409; padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: left; color: #58a6ff; border: 1px solid #21262d; line-height: 1.4;">
-                    <span style="color: #8b949e;">[SYSTEM] Interface initialized. Standing by for direct user tasking...</span>
+                <!-- Live Hermes Tailed Streaming Window Wrapper -->
+                <div id="terminal-history" style="height: 250px; overflow-y: scroll; background: #010409; padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: left; color: #58a6ff; border: 1px solid #21262d; line-height: 1.4; font-family: monospace; font-size: 13px; white-space: pre-wrap;">
+                    <div id="hermes-live-status">[SYSTEM] Initializing stream hook from log core...</div>
                 </div>
                 
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <input type="text" id="cmd-input" placeholder="Ask a question or specify a new automated research task..." style="flex-grow: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px;">
                     <button onclick="submitCommand()" style="background: #238636; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 14px;">Execute</button>
+                    <button onclick="clearTerminalHistory()" style="background: #21262d; color: #8b949e; border: 1px solid #30363d; padding: 12px 18px; border-radius: 6px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 14px; transition: background 0.2s;">🧹 Clear</button>
+                </div>
+
+                <!-- 🔐 HITL INTERACTIVE ACTION ROW -->
+                <div id="hitl-approval-row" style="background: #1f1f1f; padding: 12px; border-radius: 6px; border: 1px solid #383838; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
+                    <span style="color: #ffa500; font-weight: bold; font-size: 0.9rem; font-family: monospace;">🛡️ AGENT GATEWAY:</span>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="sendHitlSignal('approve')" style="background: #2ea44f; color: white; border: none; padding: 6px 16px; border-radius: 4px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 13px;">[APPROVE EXECUTION]</button>
+                        <button onclick="sendHitlSignal('deny')" style="background: #cf222e; color: white; border: none; padding: 6px 16px; border-radius: 4px; font-family: monospace; font-weight: bold; cursor: pointer; font-size: 13px;">[DENY/ABORT]</button>
+                    </div>
                 </div>
                 
                 <div class="video-container">
@@ -265,6 +276,14 @@
             </div>
 
             <div class="panel-container">
+                <h3 class="panel-title" style="color: #56d364;">🎨 Piper Autonomous Sketchbook</h3>
+                <div style="text-align: center; background: #0d1117; padding: 10px; border-radius: 6px; border: 1px solid #30363d;">
+                    <img id="sketchbook-viewer" src="" alt="No drawings generated yet" style="width: 100%; height: auto; border-radius: 4px; display: none; margin-bottom: 5px;" />
+                    <div id="sketchbook-caption" style="font-family: monospace; font-size: 0.85rem; color: #8b949e;">Awaiting creative execution loop...</div>
+                </div>
+            </div>
+
+            <div class="panel-container">
                 <h3 class="panel-title" style="color: #ffa500;">Active World Model Matrix</h3>
                 <div class="scan-grid">
                     <div class="scan-quadrant">
@@ -276,7 +295,7 @@
                         <div id="quad-p2" class="quadrant-data">Empty</div>
                     </div>
                     <div class="scan-quadrant">
-                        <div class="scan-quadrant-title" style="color: #ffa500; font-weight: bold; font-size: 0.85rem; margin-bottom: 5px; border-bottom: 1px solid #21262d; padding-bottom: 2px;">P4: BOTTOM-LEFT</div>
+                        <div class="quadrant-title">P4: BOTTOM-LEFT</div>
                         <div id="quad-p4" class="quadrant-data">Empty</div>
                     </div>
                     <div class="scan-quadrant">
@@ -297,27 +316,30 @@
     </div>
 
     <script>
+        let userIsScrolling = false;
+        const terminalEl = document.getElementById('terminal-history');
+
+        // Monitor scroll adjustments to prevent auto-scrolling when inspecting code strings
+        terminalEl.addEventListener('scroll', () => {
+            if (terminalEl.scrollTop + terminalEl.clientHeight < terminalEl.scrollHeight - 15) {
+                userIsScrolling = true;
+            } else {
+                userIsScrolling = false;
+            }
+        });
+
         function submitCommand() {
             let inputEl = document.getElementById('cmd-input');
-            let historyEl = document.getElementById('terminal-history');
             let text = inputEl.value.trim();
             if(!text) return;
-            
-            historyEl.innerHTML += "<br><span style='color:#79c0ff;'>&gt; Steve:</span> " + text;
-            historyEl.scrollTop = historyEl.scrollHeight;
             
             fetch('/api/command', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ command: text })
             })
-            .then(res => res.json())
-            .then(data => {
-                historyEl.innerHTML += "<br><span style='color:#56d364;'>&gt; Piper:</span> " + data.response;
-                historyEl.scrollTop = historyEl.scrollHeight;
-            })
             .catch(err => {
-                historyEl.innerHTML += "<br><span style='color:#f85149;'>[ERROR] Failed to dispatch directive to backend routing core.</span>";
+                console.error("[ERROR] Command dispatch core network failure.", err);
             });
             inputEl.value = '';
         }
@@ -333,6 +355,27 @@
                 body: JSON.stringify({ direction: dir, step: 5.0 })
             })
             .catch(err => console.error("Failed to forward manual servo step command:", err));
+        }
+
+        function sendHitlSignal(action) {
+            fetch('/api/hermes/' + action, { method: 'POST' })
+            .catch(err => console.error("HITL authorization link dropped:", err));
+        }
+
+        function syncHermesConsole() {
+            fetch('/api/hermes/status')
+            .then(res => res.json())
+            .then(data => {
+                const statusEl = document.getElementById('hermes-live-status');
+                if (statusEl && data.status) {
+                    statusEl.innerHTML = data.status;
+                    
+                    // Keep view pinned to newest lines unless operator manually pulled up to read logs
+                    if (!userIsScrolling) {
+                        terminalEl.scrollTop = terminalEl.scrollHeight;
+                    }
+                }
+            });
         }
 
         // ------------------------------------------------------------------
@@ -371,7 +414,15 @@
                         });
                     }
 
-                    // --- PERSISTENT DISCOVERY MATRIX MAP ENHANCEMENT ---
+                    if (data.latest_sketch) {
+                        const sketchImg = document.getElementById('sketchbook-viewer');
+                        const sketchCaption = document.getElementById('sketchbook-caption');
+                        
+                        sketchImg.src = "/assets/sketchbook/" + data.latest_sketch;
+                        sketchImg.style.display = "block";
+                        sketchCaption.innerText = "Active Rendering: " + data.latest_sketch;
+                    }
+
                     if (data.matrix_report) {
                         const m = data.matrix_report;
                         document.getElementById('quad-p1').innerText = m.P1_Top_Left && m.P1_Top_Left.length ? m.P1_Top_Left.join(', ') : 'None';
@@ -380,7 +431,6 @@
                         document.getElementById('quad-p4').innerText = m.P4_Bottom_Left && m.P4_Bottom_Left.length ? m.P4_Bottom_Left.join(', ') : 'None';
                     }
 
-                    // --- CANVAS OVERLAY BOUNDING BOXES ---
                     const img = document.getElementById('streamVideo');
                     const canvas = document.getElementById('trackingCanvas');
                     const ctx = canvas.getContext('2d');
@@ -446,8 +496,14 @@
                 .catch(err => console.error('Error synchronizing database timeline map:', err));
         }
 
+        function clearTerminalHistory() {
+            fetch('/api/hermes/status')
+                .then(() => console.log('Console clear triggered.'));
+        }
+
         setInterval(updateSystemState, 400);       
         setInterval(updateHistoricalLedger, 1500);  
+        setInterval(syncHermesConsole, 1000);
         
         updateSystemState();
         updateHistoricalLedger();

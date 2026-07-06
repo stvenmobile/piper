@@ -28,9 +28,10 @@ data_files_list = [
     ('share/' + package_name, ['package.xml']),
 ]
 
-# Dynamically append flattened front-end files
+# Dynamically append flattened front-end and log/task infrastructure files
 data_files_list.extend(get_flat_data_files('piper_brain/templates', 'share/' + package_name + '/templates'))
 data_files_list.extend(get_flat_data_files('piper_brain/assets', 'share/' + package_name + '/assets'))
+data_files_list.extend(get_flat_data_files('piper_brain/tasks', 'share/' + package_name + '/tasks'))
 
 setup(
     name=package_name,
@@ -47,8 +48,8 @@ setup(
     entry_points={
         'console_scripts': [
             'piper_brain_node = piper_brain.piper_brain_node:main',
-            # REMOVE the '.py' extension from the command name key
-            'dashboard_node = piper_brain.dashboard_node:run_ros_loop'
+            'dashboard_node = piper_brain.dashboard_node:run_ros_loop',
+            'autonomous_drawing = piper_brain.autonomous_drawing:main',
         ],
     },
 )

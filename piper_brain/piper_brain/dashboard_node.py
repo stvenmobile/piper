@@ -26,9 +26,11 @@ if "install/" in current_script_dir:
     workspace_root = os.path.abspath(os.path.join(current_script_dir, "../../../../src/piper_brain/piper_brain"))
     resolved_template_dir = os.path.join(workspace_root, "templates")
     resolved_assets_dir = os.path.join(workspace_root, "assets")
+    resolved_tasks_dir = os.path.join(workspace_root, "tasks")
 else:
     resolved_template_dir = os.path.join(current_script_dir, "templates")
     resolved_assets_dir = os.path.join(current_script_dir, "assets")
+    resolved_tasks_dir = os.path.join(current_script_dir, "tasks")
 
 # ==========================================================================
 # FLASK SERVER CONTEXT
@@ -51,8 +53,11 @@ _system_state_snapshot = {
     }
 }
 
-TASK_LEDGER_PATH = os.path.expanduser("~/piper/jetson_nx_mind/task_requests.md")
-DB_PATH = os.path.expanduser("~/piper/jetson_nx_mind/piper_memory.db")
+# ==========================================================================
+# FILE SYSTEM MEMORY LOCATORS (UM790 BRAIN CORE)
+# ==========================================================================
+TASK_LEDGER_PATH = os.path.join(resolved_tasks_dir, "current_tasks.md")
+DB_PATH = os.path.join(resolved_assets_dir, "piper_memory.db")
 
 _last_known_objects = set()
 _pending_state = "SOLO"
@@ -60,6 +65,8 @@ _state_transition_time = 0.0
 _current_pan = 90.0
 _current_tilt = 70.0
 _global_node_instance = None
+_latest_sketch_filename = None
+_latest_hermes_status = "[SYSTEM] Standing by for Hermes task streaming..."
 
 # ==========================================================================
 # SQLITE PERSISTENCE INITIALIZATION
@@ -128,6 +135,7 @@ def get_state():
         "active_task": _system_state_snapshot["active_task"],
         "objects": _system_state_snapshot["objects"],
         "matrix_report": _system_state_snapshot["matrix_report"],
+        "latest_sketch": _latest_sketch_filename,
         "boxes": []
     }
     raw_cache = _system_state_snapshot.get("raw_boxes_cache", [])
@@ -192,26 +200,63 @@ def handle_incoming_command():
     if not user_raw_text:
         return jsonify({"response": "Empty matrix bypassed."})
     
-    if "scan" in user_raw_text.lower():
-        if _global_node_instance:
-            threading.Thread(target=_global_node_instance.execute_spatial_scan, daemon=True).start()
-            return jsonify({"response": "Scan matrix engaged. Watch the Active World Model panel load raw waypoints..."})
-        return jsonify({"response": "ROS node offline. Scan command dropped."})
-        
-    action_keywords = ["task", "run", "write", "build", "map", "test", "execute", "gather"]
-    if any(kw in user_raw_text.lower() for kw in action_keywords):
+    # 1. HERMES ROUTE: Direct hand-off to background file-layer execution
+    if user_raw_text.lower().startswith("hermes:"):
+        clean_task = user_raw_text[7:].strip()
         try:
-            os.makedirs(os.path.dirname(TASK_LEDGER_PATH), exist_ok=True)
             with open(TASK_LEDGER_PATH, "a") as f:
-                f.write(f"\n- [ ] **Task via Dashboard Console ({time.strftime('%Y-%m-%d %H:%M')})**: {user_raw_text}\n")
-            cmd_args = ["opencode", "run", f"Please process the task requested by Steve: {user_raw_text}"]
-            subprocess.Popen(cmd_args, stdout=sys.stdout, stderr=sys.stderr, preexec_fn=os.setpgrp)
-            response_msg = "Task logged. OpenCode script runtime active."
+                f.write(f"\n- [ ] **Task via Dashboard ({time.strftime('%Y-%m-%d %H:%M')})**: {clean_task}\n")
+            
+            return jsonify({"response": "📋 System task logged directly to current_tasks.md. Hermes is deploying background routines."})
         except Exception as e:
-            response_msg = f"Delegation error: {str(e)}"
+            return jsonify({"response": f"❌ Failed to notify Hermes: {str(e)}"})
+
+    # 2. PIPER ROUTE: On-demand foreground assistant execution
     else:
-        response_msg = f"Directive acknowledged: '{user_raw_text}'"
-    return jsonify({"response": response_msg})
+        try:
+            response_msg = f"Acknowledged. I am processing your request regarding: '{user_raw_text}'"
+            return jsonify({"response": response_msg})
+        except Exception as e:
+            return jsonify({"response": f"⚠️ Piper Interactivity Error: {str(e)}"})
+
+# --- HERMES INTERACTIVE GATEWAY ENDPOINTS ---
+@_app.route("/api/hermes/status", methods=["GET"])
+def get_hermes_status():
+    log_path = os.path.expanduser("~/piper_ws/hermes_runtime.log")
+    if not os.path.exists(log_path):
+        return jsonify({"status": "[SYSTEM] Log file pipeline initializing..."})
+    
+    try:
+        # Read the last 40 lines dynamically from the filesystem log
+        with open(log_path, "r") as f:
+            lines = f.readlines()
+        tail_lines = lines[-40:]
+        
+        # Convert newlines to HTML break tags for the terminal view wrapper
+        formatted_log = "<br>".join([line.rstrip() for line in tail_lines])
+        return jsonify({"status": formatted_log})
+    except Exception as e:
+        return jsonify({"status": f"[ERROR] Failed to read runtime stream: {str(e)}"})
+
+@_app.route("/api/hermes/approve", methods=["POST"])
+def approve_hermes_task():
+    global _global_node_instance
+    if _global_node_instance:
+        msg = String()
+        msg.data = "approve"
+        _global_node_instance.approval_pub.publish(msg)
+        return jsonify({"status": "success", "message": "Approval sent down the pipe."})
+    return jsonify({"status": "error", "message": "ROS graph unavailable."})
+
+@_app.route("/api/hermes/deny", methods=["POST"])
+def deny_hermes_task():
+    global _global_node_instance
+    if _global_node_instance:
+        msg = String()
+        msg.data = "deny"
+        _global_node_instance.approval_pub.publish(msg)
+        return jsonify({"status": "success", "message": "Denial sent. Staging cleared."})
+    return jsonify({"status": "error", "message": "ROS graph unavailable."})
 
 # --------------------------------------------------------------------------
 # ROS 2 CORE INTERFACE NODE
@@ -224,17 +269,53 @@ class UM790DashboardNode(Node):
         self.data_lock = threading.Lock()
         self.first_frame_received = False
 
+        # Communications Infrastructure Mapping
         self.img_sub = self.create_subscription(CompressedImage, '/piper/camera0/image_raw/compressed', self._image_callback, 10)
         self.object_sub = self.create_subscription(String, '/piper/perception/tracked_objects_json', self._object_callback, 10)
         self.servo_pub = self.create_publisher(Vector3, '/piper/neck/set_position', 10)
             
+        # Hermes Interactive Gateway Communication Channels
+        self.status_sub = self.create_subscription(String, '/hermes/status_stream', self._hermes_status_callback, 10)
+        self.approval_pub = self.create_publisher(String, '/hermes/human_approval', 10)
+
+        # Threaded Polling Routines
+        threading.Thread(target=self._sketchbook_filesystem_watcher, daemon=True).start()
         threading.Thread(target=self._send_initial_homing_pulse, daemon=True).start()
+        
+        # Trigger single-shot automatic matrix mapping 10.0 seconds post-initialization
+        self.matrix_scan_timer = self.create_timer(10.0, self._trigger_initial_matrix_scan)
 
     def _send_initial_homing_pulse(self):
         time.sleep(1.5)
         cmd = Vector3()
         cmd.x = _current_pan; cmd.y = _current_tilt; cmd.z = 1.0
         self.servo_pub.publish(cmd)
+
+    def _trigger_initial_matrix_scan(self):
+        self.matrix_scan_timer.cancel()
+        self.get_logger().info("🌐 Commencing background World Model Matrix generation sequence...")
+        threading.Thread(target=self.execute_spatial_scan, daemon=True).start()
+
+    def _hermes_status_callback(self, msg):
+        global _latest_hermes_status
+        _latest_hermes_status = msg.data
+
+    def _sketchbook_filesystem_watcher(self):
+        """Asynchronously polls the sketchbook folder to map the newest sketch file string to the UI."""
+        global _latest_sketch_filename
+        sketch_dir = os.path.join(resolved_assets_dir, "sketchbook")
+        
+        while True:
+            try:
+                if os.path.exists(sketch_dir):
+                    files = [f for f in os.listdir(sketch_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                    if files:
+                        files.sort(key=lambda x: os.path.getmtime(os.path.join(sketch_dir, x)), reverse=True)
+                        with self.data_lock:
+                            _latest_sketch_filename = files[0]
+            except Exception as e:
+                print(f"[WATCHER ERROR] Directory indexing failure: {e}")
+            time.sleep(2.5)
 
     def _image_callback(self, msg):
         global _latest_frame_jpeg
@@ -266,23 +347,32 @@ class UM790DashboardNode(Node):
             cmd = Vector3()
             cmd.x = wp['p']; cmd.y = wp['t']; cmd.z = 1.0
             self.servo_pub.publish(cmd)
-            time.sleep(1.5)
+            time.sleep(2.0)
             
             with self.data_lock:
                 current_seen = list(_system_state_snapshot.get("objects", []))
-                _system_state_snapshot["matrix_report"][wp['id']] = current_seen
+                formatted_seen = [item.upper() for item in current_seen]
+                _system_state_snapshot["matrix_report"][wp['id']] = formatted_seen if formatted_seen else ["CLEAR"]
 
         with self.data_lock:
             _current_pan = home_p; _current_tilt = home_t
         cmd = Vector3()
         cmd.x = home_p; cmd.y = home_t; cmd.z = 1.0
         self.servo_pub.publish(cmd)
+        self.get_logger().info("🌐 Spatial scanning sequence concluded. Matrix map generated successfully.")
 
     def _parse_object_payload(self, raw_string_data):
         global _system_state_snapshot, _last_known_objects
         try:
             telemetry_data = json.loads(raw_string_data)
-            detected_objects = telemetry_data.get("objects", [])
+            
+            if isinstance(telemetry_data, list):
+                detected_objects = telemetry_data
+            elif isinstance(telemetry_data, dict):
+                detected_objects = telemetry_data.get("objects", [])
+            else:
+                detected_objects = []
+                
             cleaned_labels = []; processed_objects_for_db = []; current_frame_objects = set()
             label_parser = re.compile(r"([a-zA-Z0-9_\s\-]+)(?:\s*\((\d+)%\))?")
 
@@ -290,7 +380,7 @@ class UM790DashboardNode(Node):
                 raw_label = obj.get("label", "unknown")
                 match = label_parser.match(raw_label)
                 if match:
-                    clean_label = match.group(1).strip()
+                    clean_label = match.group(1).strip().lower()
                     pct = match.group(2)
                     confidence = float(pct) / 100.0 if pct else float(obj.get("confidence", 1.0))
                 else:
