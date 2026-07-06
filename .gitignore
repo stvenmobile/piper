@@ -46,6 +46,11 @@ piper_brain/world_model_definition.md
 # Hardware Media Buffers and Temporary Frames
 *.log
 
+# Explicit folder pattern tracking 
+piper_brain/piper_brain/assets/sketchbook/*.jpg
+piper_brain/piper_brain/assets/sketchbook/*.png
+piper_brain/piper_brain/assets/piper_memory.db
+
 # Credentials & Hardware Specific Environments
 .env
 *.env

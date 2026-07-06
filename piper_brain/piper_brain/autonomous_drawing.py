@@ -5,6 +5,7 @@ import time
 import random
 import numpy as np
 import cv2
+from datetime import datetime
 
 import rclpy
 from rclpy.node import Node
@@ -13,7 +14,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import Vector3
 
-# DNA Path Injection for local imports
+# DNA Path Injection for local imports targeting the UM790 brain location
 sys.path.append('/home/steve/piper_ws/src/piper_brain/piper_brain')
 from sketcher import PiperSketcher
 
@@ -34,24 +35,20 @@ class AutonomousDrawingNode(Node):
         )
         self.servo_pub = self.create_publisher(Vector3, '/piper/neck/set_position', 10)
         
-        # Shifted to 10-minute loop (600.0 seconds) for faster iteration stress testing
+        # 10-minute loop (600.0 seconds) for scheduled execution
         self.timer = self.create_timer(600.0, self.execute_autonomous_loop, callback_group=self.callback_group)
         
-        self.get_logger().info('🎨 Autonomous Drawing Node Initialized with Reentrant Threads. 10-Minute loop active.')
+        self.get_logger().info('🎨 Autonomous Drawing Node Initialized on UM790. 10-Minute loop active.')
         
         # Cache tracks
         self.latest_frame = None
-        self.frame_count = 0
         
-        # FIXED: Explicitly bind the startup timer to an attribute so it can be destroyed
+        # Explicitly bind the startup timer to an attribute so it can be destroyed
         self._startup_timer = self.create_timer(3.0, self.trigger_initial_pass, callback_group=self.callback_group)
 
     def image_callback(self, msg):
-        self.frame_count += 1
+        # Muzzled: Heartbeat pulse logs removed to prevent terminal spam
         self.latest_frame = msg
-        # Low-frequency heartbeat log to prove subscription pipeline health without flooding terminal
-        if self.frame_count % 30 == 0:
-            self.get_logger().info(f'[DIAGNOSTIC] Camera subscription pulse nominal. Total frames received: {self.frame_count}')
 
     def trigger_initial_pass(self):
         if self._startup_timer:
@@ -63,7 +60,6 @@ class AutonomousDrawingNode(Node):
     def maintain_storage_ceiling(self):
         """ Scans the sketchbook folder and maintains a maximum threshold of the 50 latest files """
         sketchbox_dir = '/home/steve/piper_ws/src/piper_brain/piper_brain/assets/sketchbook'
-        self.get_logger().info(f'[DIAGNOSTIC] Auditing storage directory: {sketchbox_dir}')
         if not os.path.exists(sketchbox_dir):
             self.get_logger().warn(f'⚠️ Directory missing: {sketchbox_dir}')
             return
@@ -71,7 +67,6 @@ class AutonomousDrawingNode(Node):
         try:
             # Gather all sketches
             files = [os.path.join(sketchbox_dir, f) for f in os.listdir(sketchbox_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-            self.get_logger().info(f'[DIAGNOSTIC] Found {len(files)} existing sketch files.')
             
             # If overhead exceeds ceiling, sort by modification epoch and prune old files
             if len(files) > 50:
@@ -99,18 +94,14 @@ class AutonomousDrawingNode(Node):
         self.servo_pub.publish(cmd)
         self.get_logger().info(f'🎥 Neck adjusted to Pan: {pan:.2f}, Tilt: {tilt:.2f}. Settling motor for 2 seconds...')
         
-        # Settling delay for motion blur minimization (Safe now due to MultiThreadedExecutor)
+        # Settling delay for motion blur minimization
         time.sleep(2.0)
         
-        self.get_logger().info('[LOOP TRACE] Evaluating camera buffer safety checks...')
         if self.latest_frame is None:
             self.get_logger().error('⚠️ [CRITICAL] No image buffer received yet from camera topic! Skipping loop execution pass.')
             return
             
         try:
-            timestamp_diff = time.time() - (self.latest_frame.header.stamp.sec + self.latest_frame.header.stamp.nanosec * 1e-9)
-            self.get_logger().info(f'[DIAGNOSTIC] Buffer snapshot acquired. Age of frame: {timestamp_diff:.3f} seconds.')
-            
             img_array = np.frombuffer(self.latest_frame.data, dtype=np.uint8)
             frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
             
@@ -118,11 +109,15 @@ class AutonomousDrawingNode(Node):
                 self.get_logger().error('❌ [LOOP TRACE] OpenCV failed to decode the buffer into a standard matrix format.')
                 return
                 
-            self.get_logger().info(f'[DIAGNOSTIC] OpenCV Matrix verified nominal. Dimensions: {frame.shape}')
+            # Create a clean, human-readable file signature template
+            human_timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S")
+            filename_template = f"sketch_{human_timestamp}.jpg"
             
             sketcher = PiperSketcher()
             self.get_logger().info('[LOOP TRACE] Passing frame matrix to PiperSketcher logic core...')
-            filename = sketcher.sketch_from_frame(frame, description="10-Min Autonomous Loop")
+            
+            # Pass our custom human-readable file layout signature directly to the sketch core
+            filename = sketcher.sketch_from_frame(frame, description=filename_template)
             self.get_logger().info(f'🎨 Sketch rendering complete: {filename}')
             
             # Run storage cleanup step immediately following a successful save

@@ -17,7 +17,7 @@ class PiperSketcher:
     def sketch_from_frame(self, cv_frame, description="Reality Snapshot"):
         """
         Processes an incoming OpenCV frame matrix, extracts clean physical boundaries,
-        and saves a high-contrast ink-on-paper sketch asset.
+        and saves a high-contrast ink-on-paper sketch asset with a human-readable filename pattern.
         """
         if cv_frame is None or cv_frame.size == 0:
             print("ERROR: PiperSketcher received an empty or corrupt frame matrix.")
@@ -36,14 +36,20 @@ class PiperSketcher:
         # 4. Invert the binary matrix so edges are black ink strokes on a clean white page
         sketch_canvas = cv2.bitwise_not(edges)
         
-        # 5. Lock the asset away with a pristine Unix timestamp index
-        timestamp = int(time.time())
-        filename = f"sketch_{timestamp}.jpg"
+        # 5. Dynamically handle filename assignment from the description argument[cite: 11, 13]
+        if description.startswith("sketch_") and description.lower().endswith(".jpg"):
+            # Use the human-readable pattern explicitly passed from the execution node
+            filename = description
+        else:
+            # Fallback to pristine Unix timestamp index if description is a regular description label
+            timestamp = int(time.time())
+            filename = f"sketch_{timestamp}.jpg"
+            
         filepath = os.path.join(self.workspace_dir, filename)
         
         success = cv2.imwrite(filepath, sketch_canvas)
         if success:
-            print(f"🎨 Sketch successfully rendered and committed: {filename} ({description})")
+            print(f"🎨 Sketch successfully rendered and committed: {filename}")
             return filename
         else:
             print(f"ERROR: Failed to write matrix payload to disk at: {filepath}")
@@ -51,7 +57,7 @@ class PiperSketcher:
 
     def apply_harmonic_distortion(self, input_filename, frequency=120, amplitude=15):
         """
-        Skill Expansion: Takes an existing sketch asset and warps its lines 
+        Skill Expansion: Takes an existing sketch asset and warps its lines
         using a periodic sine wave to simulate abstract harmonic frequency fields.
         """
         input_path = os.path.join(self.workspace_dir, input_filename)
