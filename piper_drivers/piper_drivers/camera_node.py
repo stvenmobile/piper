@@ -10,28 +10,27 @@ from cv_bridge import CvBridge
 
 
 class CameraStream:
-    def __init__(self, src=0):  # Mounted securely at /dev/video1
+    def __init__(self, src=0):  # Can be 0 or 1 dynamically
         self.src = src
         self.grabbed = False
         self.frame = None
         self.started = False
         self.read_lock = threading.Lock()
 
-        print(f"INFO: Mounting Arducam UVC Hardware via /dev/video{self.src}...")
+        print(f"INFO: Checking Arducam UVC Hardware via /dev/video{self.src}...")
         
         # Inject custom hardware baseline parameters before opening the capture handle
-        # This prevents streaming thread locks from ignoring our runtime values
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=auto_exposure=3")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=brightness=20")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=contrast=20")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=hue=40")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gamma=150")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gain=40")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=power_line_frequency=2")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=white_balance_automatic=1")
-        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=focus_absolute=208")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=auto_exposure=3 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=brightness=20 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=contrast=20 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=hue=40 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gamma=150 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=gain=40 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=power_line_frequency=2 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=white_balance_automatic=1 > /dev/null 2>&1")
+        os.system(f"v4l2-ctl --device=/dev/video{self.src} --set-ctrl=focus_absolute=208 > /dev/null 2>&1")
 
-        time.sleep(1.0) # Allows the V4L2 hardware registers to settle safely
+        time.sleep(0.5) # Allows the V4L2 hardware registers to settle safely
         
         self.stream = cv2.VideoCapture(self.src, cv2.CAP_V4L2)
         
@@ -42,13 +41,10 @@ class CameraStream:
         self.stream.set(cv2.CAP_PROP_FPS, 30)
 
         if not self.stream.isOpened():
-            print(f"CRITICAL ERROR: System could not open USB camera index {self.src}!")
             return
 
         # Grab initial frame array validation signature
         self.grabbed, self.frame = self.stream.read()
-        if not self.grabbed:
-            print(f"WARN: Arducam connected, but failed to grab first frame array context.")
 
     def start(self):
         if not self.stream.isOpened():
@@ -86,7 +82,7 @@ class CameraStream:
 
     def stop(self):
         self.started = False
-        if hasattr(self, 'thread'):
+        if hasattr(self, 'thread') and self.thread.is_alive():
             self.thread.join()
         if self.stream.isOpened():
             self.stream.release()
@@ -97,7 +93,6 @@ class PiperCameraNode(Node):
         super().__init__('piper_camera_node')
         self.get_logger().info("Initializing Piper Resilient Camera Node Layer...")
 
-        # Maintain both streams for maximum system design flexibility
         self.pub_cam0 = self.create_publisher(Image, '/piper/camera0/image_raw', 10)
         self.compressed_image_pub = self.create_publisher(
             CompressedImage, 
@@ -106,22 +101,43 @@ class PiperCameraNode(Node):
         )
 
         self.bridge = CvBridge()
+        self.cam0 = None
 
-        self.get_logger().info("Starting Camera 1 setup...")
-        self.cam0 = CameraStream(0)
-        time.sleep(2.0)
+        # --- DYNAMIC AUTO-DETECTION PORT LOOP ---
+        candidate_indexes = [0, 1]
+        for idx in candidate_indexes:
+            self.get_logger().info(f"Probing hardware bus: /dev/video{idx}...")
+            attempt = CameraStream(idx)
+            
+            if attempt.stream.isOpened() and attempt.grabbed:
+                self.cam0 = attempt
+                self.get_logger().info(f"SUCCESS: Arducam locked and verified on /dev/video{idx}!")
+                break
+            else:
+                self.get_logger().warn(f"Port /dev/video{idx} offline or non-responsive. Advancing probe matrix...")
+                attempt.stop() # Clean up stale open resource handle immediately
+
+        # Final Verification Guard
+        if self.cam0 is None:
+            self.get_logger().error("CRITICAL ERROR: No responsive video devices found across target profiles (/dev/video0, /dev/video1)!")
+            raise RuntimeError("Hardware Bus Error: Camera completely missing or unbound.")
+
+        time.sleep(1.0)
         self.cam0.start()
 
         # Broadcast timer: 30 FPS framing loop
         self.timer = self.create_timer(0.033, self._publish_frames)
-        self.get_logger().info("Single Camera Node actively broadcasting raw and compressed channels at 30 FPS.")
+        self.get_logger().info("Resilient Camera Node active and streaming at 30 FPS.")
 
     def _publish_frames(self):
+        if self.cam0 is None:
+            return
+            
         success0, frame0 = self.cam0.read()
         if success0 and frame0 is not None:
             current_time = self.get_clock().now().to_msg()
             
-            # 1. Handle Raw Data Stream (Local node usage)
+            # 1. Handle Raw Data Stream
             try:
                 msg0 = self.bridge.cv2_to_imgmsg(frame0, encoding="bgr8")
                 msg0.header.stamp = current_time
@@ -130,9 +146,8 @@ class PiperCameraNode(Node):
             except Exception as e:
                 self.get_logger().warn(f"Failed to serialize frame data matrix to ROS 2 Image msg: {e}")
 
-            # 2. Handle Highly-Compressed JPEG Stream (Foxglove WebSocket usage)
+            # 2. Handle Highly-Compressed JPEG Stream
             try:
-                # Target a 90% JPEG quality scale to clear out network socket buffer chokes
                 success, encoded_image = cv2.imencode('.jpg', frame0, [cv2.IMWRITE_JPEG_QUALITY, 90])
                 if success:
                     comp_msg = CompressedImage()
@@ -146,19 +161,24 @@ class PiperCameraNode(Node):
 
     def destroy_node(self):
         self.get_logger().info("Stopping physical camera stream...")
-        self.cam0.stop()
+        if self.cam0:
+            self.cam0.stop()
         super().destroy_node()
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = PiperCameraNode()
     try:
+        node = PiperCameraNode()
         rclpy.spin(node)
+    except RuntimeError as e:
+        print(f"Termination: {e}")
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        # Check if node was successfully created before invoking destruction logic
+        if 'node' in locals():
+            node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
 

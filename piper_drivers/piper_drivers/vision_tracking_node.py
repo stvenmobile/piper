@@ -1,96 +1,91 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
+import cv2
+import json
 from cv_bridge import CvBridge
 from ultralytics import YOLO
-import json
-import sys
-import argparse
 
 class PiperVisionTrackingNode(Node):
-    def __init__(self, verbose=False):
+    def __init__(self):
         super().__init__('piper_vision_tracking_node')
         self.bridge = CvBridge()
-        self.verbose = verbose
         
+        # Initialize YOLOv8 Nano model (Highly optimized for edge devices)
         self.get_logger().info("Loading YOLO network layers onto GPU...")
         self.model = YOLO('yolov8n.pt') 
         
+        # Subscription shifted to CompressedImage channel to protect network bandwidth
         self.subscription = self.create_subscription(
-            Image,
-            '/piper/camera0/image_raw',
+            CompressedImage,
+            '/piper/camera0/image_raw/compressed',
             self._image_callback,
             10)
             
-        # Standard ROS String topic - 100% immune to type-hash collisions
-        self.json_pub = self.create_publisher(
-            String, 
-            '/piper/perception/tracked_objects_json', 
-            10
-        )
-        self.get_logger().info("Headless State Broker Active. Universal JSON tracking stream online.")
+        # Unified structured JSON telemetry topic for dashboard and brain tracking
+        self.perception_pub = self.create_publisher(String, '/piper/perception/tracked_objects_json', 10)
+        self.get_logger().info("Vision Tracking Node active with strict >=60% confidence filter.")
 
     def _image_callback(self, msg):
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            # Decode compressed JPEG matrix to OpenCV format natively
+            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
-            self.get_logger().error(f"CvBridge conversion failed: {e}")
+            self.get_logger().error(f"Compressed CvBridge decoding failed: {e}")
             return
 
+        # Run local GPU-accelerated inference
         results = self.model(cv_image, verbose=False)
         
-        detection_list = []
-        labels_seen = []
-
+        tracked_objects = []
+        
+        # Fetch the master names dictionary from the model configuration
+        names_dict = self.model.names
+        
         for result in results:
             boxes = result.boxes
             for box in boxes:
                 class_id = int(box.cls[0])
                 confidence = float(box.conf[0])
                 
-                if confidence > 0.40:
-                    label = self.model.names[class_id]
-                    xyxy = box.xyxy[0].tolist()
+                # ENFORCE THRESHOLD: Strict 60% filter limit
+                if confidence >= 0.60:
+                    xyxy = box.xyxy[0].tolist()  # [xmin, ymin, xmax, ymax]
+                    label = names_dict.get(class_id, f"unknown_{class_id}")
                     
-                    labels_seen.append(label)
+                    # Construct individual object coordinate telemetry map
+                    obj_data = {
+                        "class_id": class_id,
+                        "label": label.capitalize(),
+                        "confidence": round(confidence, 2),
+                        "xmin": int(xyxy[0]),
+                        "ymin": int(xyxy[1]),
+                        "xmax": int(xyxy[2]),
+                        "ymax": int(xyxy[3])
+                    }
+                    tracked_objects.append(obj_data)
 
-                    # Pack raw primitive dictionary coordinates
-                    detection_list.append({
-                        "label": f"{label} ({round(confidence * 100)}%)",
-                        "xmin": float(xyxy[0]),
-                        "ymin": float(xyxy[1]),
-                        "xmax": float(xyxy[2]),
-                        "ymax": float(xyxy[3])
-                    })
+        # Serialize complete frame snapshot array into a single JSON payload
+        payload = String()
+        payload.data = json.dumps(tracked_objects)
+        self.perception_pub.publish(payload)
 
-        # Assemble and broadcast a completely universal JSON payload
-        out_msg = String()
-        out_msg.data = json.dumps({"objects": detection_list})
-        self.json_pub.publish(out_msg)
-
-        if self.verbose and len(labels_seen) > 0:
-            self.get_logger().info(f"Perception Frame Matrix: Spotted {labels_seen}")
-
+        # Log active targets to console for edge telemetry checking
+        if tracked_objects:
+            self.get_logger().info(f"Broadcasting tracking matrix: {[obj['label'] for obj in tracked_objects]}")
 
 def main(args=None):
-    parser = argparse.ArgumentParser(description="Piper Vision Tracking Runtime Engine")
-    parser.add_argument('-V', '--verbose', action='store_true', help='Enable console logs')
-    
-    ros_args = rclpy.utilities.remove_ros_args(args=sys.argv)
-    parsed_args, _ = parser.parse_known_args(ros_args[1:])
-
     rclpy.init(args=args)
-    node = PiperVisionTrackingNode(verbose=parsed_args.verbose)
+    node = PiperVisionTrackingNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        node.get_logger().info("Vision tracking loop intercepted.")
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
