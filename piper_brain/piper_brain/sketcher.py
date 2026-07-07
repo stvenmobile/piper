@@ -30,15 +30,14 @@ class PiperSketcher:
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         
         # 3. Apply Canny Edge Detection to calculate structural boundary gradients
-        # Lower threshold locks finer textures; upper threshold isolates dominant contours
         edges = cv2.Canny(blurred, threshold1=30, threshold2=100)
         
         # 4. Invert the binary matrix so edges are black ink strokes on a clean white page
         sketch_canvas = cv2.bitwise_not(edges)
         
-        # 5. Lock the asset away with a pristine Unix timestamp index
-        timestamp = int(time.time())
-        filename = f"sketch_{timestamp}.jpg"
+        # ✨ 5. Lock the asset away with a readable local timestamp index (e.g., sketch_20260706_173045.jpg)
+        time_string = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        filename = f"sketch_{time_string}.jpg"
         filepath = os.path.join(self.workspace_dir, filename)
         
         success = cv2.imwrite(filepath, sketch_canvas)
@@ -72,7 +71,9 @@ class PiperSketcher:
                     new_j = (j + shift) % cols
                     abstract_canvas[i, new_j] = 0  # Re-project line onto abstract canvas
 
-        filename = f"abstract_{int(time.time())}.jpg"
+        # ✨ Readable local timestamp index for abstract transformations
+        time_string = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        filename = f"abstract_{time_string}.jpg"
         filepath = os.path.join(self.workspace_dir, filename)
         cv2.imwrite(filepath, abstract_canvas)
         

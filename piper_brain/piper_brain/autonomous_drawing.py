@@ -43,15 +43,31 @@ class AutonomousDrawingNode(Node):
         self.latest_frame = None
         self.frame_count = 0
         
+        # ✨ NEW: Tracks arrival time delta to detect skipped beats silently
+        self.last_frame_arrival_time = None
+        self.skips_allowed_threshold = 0.100  # 100ms ceiling (~3 missed frames consecutively)
+        
         # FIXED: Explicitly bind the startup timer to an attribute so it can be destroyed
         self._startup_timer = self.create_timer(3.0, self.trigger_initial_pass, callback_group=self.callback_group)
 
     def image_callback(self, msg):
         self.frame_count += 1
         self.latest_frame = msg
-        # Low-frequency heartbeat log to prove subscription pipeline health without flooding terminal
-        if self.frame_count % 30 == 0:
-            self.get_logger().info(f'[DIAGNOSTIC] Camera subscription pulse nominal. Total frames received: {self.frame_count}')
+        
+        current_time = time.time()
+        
+        # ✨ NEW: Delta-time tracking algorithm
+        if self.last_frame_arrival_time is not None:
+            time_since_last_frame = current_time - self.last_frame_arrival_time
+            
+            # If the pulse skips a beat past our threshold, flag it as a warning!
+            if time_since_last_frame > self.skips_allowed_threshold:
+                self.get_logger().warn(
+                    f'⚠️ [PULSE WARN] Camera subscription skipped a beat! '
+                    f'Delay: {time_since_last_frame:.3f}s (Expected ~0.033s). Total frames: {self.frame_count}'
+                )
+                
+        self.last_frame_arrival_time = current_time
 
     def trigger_initial_pass(self):
         if self._startup_timer:
