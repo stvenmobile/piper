@@ -1,160 +1,108 @@
-```markdown
-# Piper Project: Autonomous Dynamic World-Modeling
-
-An agentic, visually-aware embodied AI leveraging a distributed, cross-platform ROS 2 network, edge vision acceleration (Jetson Orin NX), local heavy inference (UM790 Pro), and OpenCode orchestration to explore and define a dynamic world model based on real-time video streaming data.
+# Piper ROS2 Workspace README
 
 ## Introduction
 
-Piper is an advanced autonomous system designed to explore and understand its environment through real-time video data. It utilizes a dual-node Jazzy architecture, leveraging ROS 2 for communication between nodes. Piper's capabilities include dynamic state management, edge computing, and high-level cognitive processing, all orchestrated by OpenCode.
+Piper is an advanced robotics platform designed to facilitate the development and deployment of autonomous systems using ROS 2. This document provides a comprehensive overview of setting up, running, and interacting with Piper through its Jazzy architecture.
 
-## System Requirements
+## Setup Instructions
 
-To run Piper, you will need the following dependencies:
-- ROS 2 (specifically rclpy)
-- Eclipse CycloneDDS
-- NVIDIA Jetson Orin NX for hardware acceleration
-- UM790 Pro workstation for cognitive processing
-- Python 3.8 or later
-- SQLite for session persistence
+To set up your Piper ROS2 workspace, follow these steps:
 
-## Installation Instructions
+1. **Install ROS 2**: Ensure you have ROS 2 installed on your system. You can download it from the [official ROS 2 website](https://docs.ros.org/en/foxy/Installation.html).
 
-1. **Clone the repository:**
+2. **Clone the Repository**:
    ```bash
    git clone https://github.com/your-repo/piper_ws.git
-   ```
-
-2. **Navigate to the workspace directory:**
-   ```bash
    cd piper_ws
    ```
 
-3. **Build the workspace:**
+3. **Install Dependencies**:
    ```bash
-   colcon build --packages-select piper_brain piper_sensor piper_control
+   sudo apt-get update
+   sudo apt-get install ros-foxy-rclpy ros-foxy-pip
+   pip3 install -r requirements.txt
    ```
 
-4. **Source the setup file:**
+4. **Build the Workspace**:
    ```bash
+   colcon build --packages-select piper_brain piper_sensor
    source install/setup.bash
    ```
 
-## Configuration
-
-Piper can be configured through parameters and launch files located in the `config` directory. Common configurations include:
-- Setting the camera resolution
-- Adjusting inference thresholds
-- Configuring logging levels
-
-Example launch file (`launch/piper.launch.py`):
-```python
-from launch import LaunchDescription
-from launch_ros.actions import Node
-
-def generate_launch_description():
-    return LaunchDescription([
-        Node(
-            package='piper_brain',
-            executable='piper_brain_node',
-            name='piper_brain',
-            parameters=[{'camera_resolution': '1080p'}]
-        ),
-        Node(
-            package='piper_sensor',
-            executable='sensor_node',
-            name='sensor_node'
-        )
-    ])
-```
-
 ## Usage Examples
 
-### Launching Nodes
-To launch the Piper brain and sensor nodes, use:
+### Initializing and Running Piper
+
+To initialize and run Piper, execute the following commands:
+
 ```bash
-ros2 launch piper_brain piper.launch.py
+ros2 launch piper_ws piper_launch.py
 ```
 
-### Sending/Receiving Messages
-To send a message to the Piper brain node using rclpy, you can create a Python script like `send_message.py`:
+This will start both the `piper_brain_node` and `sensor_node`.
+
+### Interacting with Piper through rclpy
+
+Here’s how you can interact with Piper using rclpy:
+
+1. **Import Necessary Modules**:
+   ```python
+   import rclpy
+   from piper_brain.srv import BrainService
+   ```
+
+2. **Create a Node and Call the Service**:
+   ```python
+   def main(args=None):
+       rclpy.init(args=args)
+       node = rclpy.create_node('piper_client')
+       client = node.create_client(BrainService, 'brain_service')
+
+       while not client.wait_for_service(timeout_sec=1.0):
+           node.get_logger().info('service not available, waiting again...')
+
+       request = BrainService.Request()
+       response = client.call_async(request)
+       rclpy.spin_until_future_complete(node, response)
+
+       node.get_logger().info(f'Response: {response.result()}')
+       node.destroy_node()
+       rclpy.shutdown()
+
+   if __name__ == '__main__':
+       main()
+   ```
+
+## Technical Details
+
+### Node Class Structures and Message Types
+
+Piper utilizes proper ROS 2 node class structures and correct message type imports. For example, the `piper_brain_node` uses the following structure:
+
 ```python
-import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from piper_brain.srv import BrainService
 
-class MessageSender(Node):
+class PiperBrainNode(Node):
     def __init__(self):
-        super().__init__('message_sender')
-        self.publisher_ = self.create_publisher(String, 'brain_command', 10)
-        timer_period = 0.5  # seconds
-        self.timer = self.create_timer(timer_period, self.timer_callback)
+        super().__init__('piper_brain')
+        self.service = self.create_service(BrainService, 'brain_service', self.handle_request)
 
-    def timer_callback(self):
-        msg = String()
-        msg.data = 'Hello Piper!'
-        self.publisher_.publish(msg)
-        self.get_logger().info('Publishing: "%s"' % msg.data)
-
-def main(args=None):
-    rclpy.init(args=args)
-    message_sender = MessageSender()
-
-    rclpy.spin(message_sender)
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    message_sender.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
+    def handle_request(self, request, response):
+        # Handle the service request
+        return response
 ```
 
-### Running a Node
-To run the `send_message.py` script, use:
-```bash
-python3 send_message.py
-```
+### Libraries and Packages
 
-## Troubleshooting
+Piper's development relies on several crucial libraries and packages:
+- `rclpy`: ROS 2 Client Library for Python.
+- `sensor_msgs`: Standard message types for sensor data.
 
-- **ROS 2 Environment Not Found:** Ensure that you have sourced the setup file (`source install/setup.bash`) before running any ROS 2 commands.
-- **Node Not Launching:** Check the terminal output for error messages and ensure all dependencies are installed correctly.
-- **Message Not Received:** Verify that the publisher and subscriber nodes are running and subscribed to the correct topics.
-
-For more information, refer to the [ROS 2 documentation](https://docs.ros.org/en/foxy/index.html).
-
-## File Structure
-
-The Piper ROS 2 workspace is organized as follows:
-```
-piper_ws/
-├── src/
-│   ├── piper_brain/
-│   │   ├── CMakeLists.txt
-│   │   ├── package.xml
-│   │   └── src/
-│   │       └── piper_brain_node.py
-│   ├── piper_sensor/
-│   │   ├── CMakeLists.txt
-│   │   ├── package.xml
-│   │   └── src/
-│   │       └── sensor_node.py
-│   └── piper_control/
-│       ├── CMakeLists.txt
-│       ├── package.xml
-│       └── src/
-│           └── control_node.py
-├── config/
-│   └── piper_brain_params.yaml
-└── launch/
-    └── piper.launch.py
-```
+These dependencies ensure that Piper can effectively interact with various sensors and perform autonomous tasks.
 
 ## Conclusion
 
-Piper is a powerful and flexible system designed to explore and understand its environment through real-time video data. By following the installation instructions, configuring parameters, and using provided examples, you can effectively leverage Piper's capabilities for your autonomous applications.
+This README provides a detailed guide to setting up, running, and interacting with Piper using its Jazzy architecture. By following the instructions and examples provided, you should be able to leverage Piper's capabilities for your robotics projects.
 
-For further details and support, please visit our [GitHub repository](https://github.com/your-repo/piper_ws).
-```
+For further enhancements and user feedback, please refer to the [Piper Brain Task Progress](src/piper_brain/piper_brain/tasks/task_progress.md) document.
