@@ -167,20 +167,36 @@ class HermesSupervisorNode(Node):
             with open(target_file, 'r') as f:
                 original_source_code = f.read()
 
-            qwen_system = (
-                "You are an expert ROS 2 software engineer. You write complete, valid, working python code files. "
-                "You are given an existing python file and an architectural blueprint specifying modifications. "
-                "Output the entire modified python file from scratch. DO NOT use placeholders like '# ... rest of code ...'. "
-                "Include all imports, methods, loops, and setup declarations intact so it can overwrite the destination file directly. "
-                "Output ONLY the raw code inside standard ```python ``` markdown wrapper blocks."
-            )
+            # 🛡️ Tightened Extension Safety Matrix
+            if target_file.endswith('.md'):
+                qwen_system = (
+                    "You are an expert technical writer and ROS 2 documentation specialist. "
+                    "You are given an existing markdown file and a blueprint specifying modifications. "
+                    "Output the ENTIRE updated markdown file from scratch. Maintain pristine layout, headings, "
+                    "and formatting blocks. Output ONLY the raw markdown content. Do not wrap your response in "
+                    "outer python markdown code blocks."
+                )
+            elif target_file.endswith('.py'):
+                qwen_system = (
+                    "You are an expert ROS 2 software engineer. You write complete, valid, working python code files. "
+                    "You are given an existing python file and an architectural blueprint specifying modifications. "
+                    "Output the entire modified python file from scratch. DO NOT use placeholders like '# ... rest of code ...'. "
+                    "Include all imports, methods, loops, and setup declarations intact so it can overwrite the destination file directly. "
+                    "Output ONLY the raw code inside standard ```python ``` markdown wrapper blocks."
+                )
+            else:
+                # Catch-all exception gate for unsupported file domains
+                error_msg = f"❌ [SAFETY REJECTION] This request to modify '{os.path.basename(target_file)}' is outside my role."
+                self.logger.error(error_msg)
+                self._publish_to_dashboard(error_msg)
+                return
             
             qwen_user_prompt = (
                 f"### ARCHITECTURAL BLUEPRINT:\n{hermes_blueprint}\n\n"
-                f"### ORIGINAL SOURCE CODE:\n{original_source_code}"
+                f"### ORIGINAL TARGET FILE CONTENT:\n{original_source_code}"
             )
             
-            # Stage 2 Execution Pass
+            # Stage 2 Execution Pass (runs if safety check clears)
             final_code_payload = self.query_local_llm(
                 STAGE_2_CODER_MODEL, qwen_system, qwen_user_prompt,
                 temperature=STAGE_2_TEMPERATURE, top_p=STAGE_2_TOP_P, max_tokens=STAGE_2_MAX_TOKENS
