@@ -73,8 +73,8 @@ class PiperVisionTrackingNode(Node):
         self.perception_pub.publish(payload)
 
         # Log active targets to console for edge telemetry checking
-        if tracked_objects:
-            self.get_logger().info(f"Broadcasting tracking matrix: {[obj['label'] for obj in tracked_objects]}")
+        # if tracked_objects:
+        #    self.get_logger().info(f"Broadcasting tracking matrix: {[obj['label'] for obj in tracked_objects]}")
 
 def main(args=None):
     rclpy.init(args=args)
