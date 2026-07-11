@@ -35,11 +35,12 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
   RENAME dashboard_node
 )
-# Install the vision tracking node script
+
+# Install the autonomous drawing script
 install(PROGRAMS
-  piper_brain/vision_tracking_node.py
+  piper_brain/autonomous_drawing.py
   DESTINATION lib/${PROJECT_NAME}
-  RENAME vision_tracking_node
+  RENAME autonomous_drawing
 )
 
 ament_package()

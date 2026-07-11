@@ -1,100 +1,116 @@
-#  # **Piper Project: Autonomous Dynamic World-Modeling**
+# Piper Project: ROS 2 Distributed Robot
 
-An agentic, visually-aware embodied AI leveraging a distributed, cross-platform ROS 2 network, edge vision acceleration (Jetson Orin NX), local heavy inference (UM790 Pro), and OpenCode orchestration to explore and define a dynamic world model based on real-time video streaming data.
+This repository contains the software for the Piper distributed robot system, designed to operate across a Jetson Orin NX edge node and a UM790 Pro MiniPC brain node. The system leverages ROS 2 for inter-node communication and task orchestration, focusing on a robust and efficient robotics platform for tasks like autonomous drawing and vision tracking.
 
-## **1. Piper - Overview and Purpose**
+## 1. ROS 2 Environment Setup
 
-The Piper Project focuses on exploring and defining a dynamic world model based on real-time video data streamed from a camera hosted on the Jetson Orin NX (the sensory perception layer). By analyzing the physical relationship between her servo-actuated motor movements and the resulting shifts in her visual matrix, Piper actively learns the cause-and-effect of her embodiment.
+The Piper project utilizes a distributed ROS 2 environment with specific configurations for each hardware platform:
 
-Instead of waiting for conversational prompts, Piper operates autonomously, managing her own long-term focus and reading/writing to local file systems via OpenCode. Her operational profile adapts dynamically based on environmental telemetry, stabilized by a **20-second state machine hysteresis loop** to prevent erratic transitions from momentary profile shifts:
+*   **Domain ID:** 42 (ensures proper communication between nodes)
+*   **RMW Implementation:** CycloneDDS (consistent across both Jetson and UM790)
+*   **ROS 2 Distributions:**
+    *   **Jetson Orin NX:** Humble
+    *   **UM790 Pro MiniPC:** Jazzy
 
-* **STATE: SOLO (The Researcher):** Piper focuses on world-model derivation, executing physical micro-movements using her pan/tilt servos and mapping visual matrix deltas to capture how environmental context shifts in the video frame.
-* **STATE: TEAMING (The Collaborator):** When she visually identifies a collaborator via edge YOLO arrays, she transitions into an active support role—monitoring the web dashboard console, checking the task request ledger for directives, and parsing operational code requests.
+**Important:**
+*   Always use ROS 2 (`rclpy`), never ROS 1 (`rospy`).
+*   Ensure proper sourcing order: `source /opt/ros/jazzy/setup.bash && source install/setup.bash`
 
----
+## 2. Build & Run Instructions
 
-## **2. Architectural Design**
+All commands should be executed from the `/home/steve/piper_ws` directory.
 
-### **Distributed ROS 2 Graph (Cross-Platform Topology)**
-To maximize compute efficiency, Piper’s architecture is decoupled into a heterogeneous, multi-system ROS 2 graph utilizing **Eclipse CycloneDDS** to bridge hardware execution and high-level cognitive processes across a mixed-version network topology:
+### 2.1 Building the Workspace
 
-* **Sensory Perception Layer (Jetson Orin NX):** Runs **ROS 2 Humble** on Ubuntu 22.04 to leverage optimized, hardware-accelerated NVIDIA edge vision and I2C peripheral libraries.
-* **Cognitive & Execution Layer (UM790 Pro):** Runs **ROS 2 Jazzy** on Ubuntu 24.04 within a modern Python `.venv` workstation environment to drive high-level agentic orchestration.
-
-```text
-
-[ JETSON ORIN NX (Edge Peripheral Layer) ]
-            │
-            ├──> camera_node ──> [/piper/camera0/image_raw/compressed]
-            │                                 │
-            ├──> vision_tracking_node ────────┼─> [/piper/perception/tracked_objects_json]
-            │                                 │
-            └──> servo_node <─────────────────┼─┐
-                                              │ │  ( CycloneDDS Bridge )
-──────────────────────────────────────────────┼─┼─────────────────────────
-                                              │ │
-       [ UM790 PRO PC (Cognitive & UI Layer) ]│ │
-            │                                 ▼ ▼
-            ├──> um790_dashboard_node <───────┘ │
-            │       │                           │
-            │       └──> [ Database: piper_memory.db ]
-            │                                   │
-            └──> piper_brain_node ──────────────┘
-
+```bash
+colcon build
 ```
 
-#### **Edge Hardware Layer (Jetson Orin NX Hub - `piper_drivers`)**
-* **`camera_node`**: High-performance hardware abstraction layer that opens the CSI sensor via a hardware-accelerated GStreamer pipeline, applies a $180^\circ$ flip modification, and broadcasts compressed JPEG frames to protect network bandwidth.
-* **`vision_tracking_node`**: Low-latency edge inference engine running quantized YOLO models locally on the Jetson GPU. It broadcasts a structured string payload (`/piper/perception/tracked_objects_json`) containing object labels, confidences, and raw pixel boundaries (`xmin`, `ymin`, `xmax`, `ymax`).
+### 2.2 Sourcing the Workspace
 
-#### **Cognitive & UI Layer (UM790 Pro Workstation - `piper_brain`)**
-* **`um790_dashboard_node`**: Multi-threaded Flask web server operating at `http://localhost:5000`. It maps structural data streams, processes relative servo command routing, and aggregates active objects inside a permanent frontend dashboard.
-* **`piper_brain_node`**: The core supervisory engine running a `MultiThreadedExecutor` to manage asynchronous priority queues, handle action goal preemption routines, and run the OpenCode agentic loop.
+After building, you must source the workspace to make the ROS 2 packages available:
 
----
+```bash
+source install/setup.bash
+```
 
-## **3. Advanced Capabilities & Telemetry Stream Sync**
+### 2.3 Running Nodes
 
-### **Hardware-Accelerated Bounding Boxes**
-To maintain a near-zero resource tax on the Jetson Orin NX computational core, bounding boxes are completely offloaded to the client side. The dashboard uses an HTML5 transparent `<canvas>` element stacked directly on top of the live stream `<img>`. The client-side telemetry loop handles calculating display scale differences and rendering the tracking squares dynamically using hardware acceleration.
+#### UM790 Pro MiniPC (Brain Nodes)
 
-### **Session Persistence Ledger (SQLite)**
-Every tracking event intercepted by the cognitive tier parses the incoming YOLO json array, derives the box's spatial **midpoint centroid** ($x_c, y_y$), and logs it to a persistent database:
-$$\begin{array}{cc} x_c = \frac{x_{min} + x_{max}}{2} & y_c = \frac{y_{min} + y_{max}}{2} \end{array}$$
-The database engine standardizes counts, max confidence metrics, and historical timestamps to construct a persistent semantic memory layer.
+To start the full brain-side stack, including the dashboard and background processes:
 
-### **Manual Neck Servo Overrides**
-The dashboard console embeds an absolute-jog controller loop. It feeds directional movement impulses (Up, Down, Left, Right) directly to the neck servos, custom-inverted to compensate for physical inverted-chassis hardware mounting constraints.
+```bash
+./start_piper_brain.sh
+```
 
-### **Deterministic Action Vocabulary**
-The system incorporates an explicit action contract governed by a `vocabulary.json` schema. The first operational verb implemented is **`scan`**:
-* **The Scan Behavior**: Initiates a dynamic 4-point rectangular bounding frame sweep ($40^\circ \text{ wide} \times 20^\circ \text{ tall}$) centered entirely relative to her current real-time viewpoint. 
-* At each corner waypoint (P1 Top-Left $\rightarrow$ P2 Top-Right $\rightarrow$ P3 Bottom-Right $\rightarrow$ P4 Bottom-Left), the execution loop pauses for 1.5 seconds to settle hardware vibrations, captures a spatial snapshot of all localized object centroids, and permanently updates a dedicated **Active World Model Matrix** block inside the web console layout.
+Alternatively, to launch individual brain nodes:
 
----
+```bash
+ros2 launch piper_brain piper_brain_launch.py
+```
 
-## **4. OpenCode Structural Components & File System Organization**
+This typically runs `dashboard_node.py` in the foreground, while `hermes_supervisor` and `autonomous_drawing` run as background processes.
 
-Piper's memory, motivation, and persistent tracking logs are governed by a specific sandbox directory of markdown and JSON files. OpenCode acts as the execution interface to read, parse, and update these documents:
+#### Jetson Orin NX (Edge Nodes)
 
-* **`system_dna.md`**: The core system prompt and initialization parameters defining identity, hardware constraints, and primary directives.
-* **`task_requests.md`**: The central inbox/outbox. Directives submitted via the dashboard console append directly here (e.g., `- [ ] **Task via Dashboard Console**: ...`) before invoking background subprocess shells.
-* **`daily_journal.md`**: Chronological output log where Piper documents status updates, modified code blocks, and operational insights.
-* **`world_model_definition.md`**: The scientific ledger where dynamic world-model findings are persistently mapped (e.g., pan/tilt servo changes relative to pixel coordinate drift).
-* **`vocabulary.json`**: The machine-readable behavioral schema defining physical and cognitive verb specifications, expected outcomes, and parameters.
+To start the drivers and vision components on the Jetson:
 
----
+```bash
+./src/start_jetson.sh
+```
 
-## **5. Implementation & Integration Notes**
+Alternatively, to launch individual Jetson nodes:
 
-* **Cross-Version RMW Interoperability:** Communicates seamlessly between ROS 2 Humble (Jetson) and ROS 2 Jazzy (UM790 Pro) over CycloneDDS. Stale type-hash warnings (`ParticipantEntitiesInfo_` USER_DATA omissions) are expected network parsing artifacts and do not degrade message throughput.
-* **Workspace Splitting:** Packages are structurally isolated to protect target environments. High-level runtime templates, tracking assets, and supervisor engines sit in `piper_brain` on the workstation, while low-level peripheral drivers and vision node setups sit inside `piper_drivers` on the edge node.
-* **Schema Upgrades**: Modifications to the SQLite tracking tables require explicit database migration scripts or clean slate resets (`rm *.db`) since the automated internal generation logic bypasses columns already initialized during old application lifecycles.
+```bash
+ros2 launch piper_drivers piper_hardware_launch.py
+```
 
----
+## 3. Packages & Entry Points
 
-## **4. Implementation & Integration Notes**
+The project is structured into several ROS 2 packages, each with specific nodes and functionalities, distributed across the Jetson and UM790.
 
-* **Cross-Version RMW Interoperability:** Communicates seamlessly between ROS 2 Humble (Jetson) and ROS 2 Jazzy (UM790 Pro) over CycloneDDS. Stale type-hash warnings (`ParticipantEntitiesInfo_` USER_DATA omissions) are expected network parsing artifacts and do not degrade message throughput.
-* **Workspace Splitting:** Packages are structurally isolated to protect target environments. High-level runtime templates, tracking assets, and supervisor engines sit in `piper_brain` on the workstation, while low-level peripheral drivers sit inside `piper_drivers` on the edge node.
-* **Thread Isolation & Scoping:** The Flask streaming loop on the workstation relies on an independent background thread running concurrent to the main ROS subscription callbacks, utilizing global memory protections to stream high-frame-rate compressed JPEGs without blocking the main executor scope.
+| Package           | Entry Points / Nodes                                   | Description                                                                                                                                                                                                            | Hardware Location |
+| :---------------- | :----------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------- |
+| `piper_brain`     | `piper_brain_node`, `dashboard_node`, `autonomous_drawing` | `piper_brain_node`: Supervisor and action server with priority preemption. `dashboard_node`: Flask web interface (:5000) with ROS subscriber. `autonomous_drawing`: Periodic sketch generation loop.                 | UM790 MiniPC      |
+| `piper_drivers`   | `camera_node`, `servo_node`, `vision_tracking_node`    | `camera_node`: Manages camera sensor. `servo_node`: Controls robot servos (neck pan/tilt). `vision_tracking_node`: Processes camera data for object detection (YOLO detections).                                 | Jetson Orin NX    |
+| `hermes_mind`     | `task_supervisor`                                      | Manages tasks, uses Ollama (hermes3 + qwen2.5-coder) for HITL codegen, and stages code for human approval via the dashboard. Watches `piper_brain/tasks/current_tasks.md`.                                       | UM790 MiniPC      |
+| `piper_interfaces`| `ExecuteSkill.action`                                  | Defines ROS 2 action interfaces, specifically `ExecuteSkill.action` for priority-based preemption of robot skills.                                                                                                       | Both              |
+
+## 4. Key ROS 2 Topics
+
+These topics facilitate communication between different nodes across the distributed system.
+
+| Topic                               | Type              | Description                                        |
+| :---------------------------------- | :---------------- | :------------------------------------------------- |
+| `/piper/camera0/image_raw/compressed` | `CompressedImage` | Compressed camera stream (consumed on brain side)  |
+| `/piper/neck/set_position`          | `Vector3`         | Servo commands for neck (x=pan, y=tilt)            |
+| `/piper/perception/tracked_objects_json` | `String`          | YOLO object detections in JSON format              |
+| `/hermes/status_stream`             | `String`          | Hermes supervisor dashboard updates                |
+| `/hermes/human_approval`            | `String`          | Human-in-the-Loop (HITL) approval channel for Hermes |
+
+## 5. Architecture Highlights
+
+*   **MultiThreadedExecutor:** Utilized across the system to ensure safe blocking operations like `time.sleep()`.
+*   **Jetson Edge (`piper_drivers`):**
+    *   `camera_node` feeds into `vision_tracking_node`.
+    *   Nodes are sequenced via `OnProcessStart` to avoid GStreamer race conditions.
+*   **UM790 Brain (`piper_brain`):**
+    *   `dashboard_node` (Flask + ROS subscriber) provides the UI.
+    *   `piper_brain_node` acts as an action server with priority preemption.
+    *   `autonomous_drawing` runs a periodic sketching loop.
+*   **Hermes (`hermes_mind`):** Operates as a background file-watcher on `current_tasks.md`, driving an Ollama-based codegen pipeline with a Human-in-the-Loop (HITL) gate.
+
+## 6. Critical Gotchas
+
+*   **`autonomous_drawing` Entry Point:** This node is currently broken when built with `colcon`. It **must** be run via direct Python: `~/.venv/bin/python3 src/piper_brain/piper_brain/autonomous_drawing.py`.
+*   **Python Path Injection:** For standalone scripts to import sibling modules, `sys.path.append('/home/steve/piper_ws/src/piper_brain/piper_brain')` is required.
+*   **gRPC Stubs:** Files like `spatial_matrix_pb2*` are auto-generated Protobuf code; **do not hand-edit** them.
+*   **SQLite Schema Upgrades:** Manual migration or `rm *.db` is necessary for schema changes; no automatic migration is provided.
+*   **Robot Vocabulary:** Defined in `piper_brain/vocabulary.json`.
+*   **Dashboard Sketch Assets:** Image assets for the dashboard must be placed in `piper_brain/assets/sketchbook/` and named `sketch_<unix_timestamp>.jpg`.
+*   **Avoid `autonomous_sketch`:** Do not use `autonomous_sketch` as a filename or package name, as it causes dashboard route conflicts. Use `autonomous_drawing` instead.
+*   **Hermes Supervisor:** Monitors `piper_brain/tasks/current_tasks.md` for tasks, uses Ollama, and stages code for human approval on the dashboard before writing to disk.
+*   **Workspace Root:** The root for all source code is `/home/steve/piper_ws/src/`.
+*   **Python Virtual Environment:** Located at `/home/steve/piper_ws/.venv` with dependencies listed in `src/requirements.txt`.
+*   **Tests:** `pytest` is used per package, adhering to standard ROS 2 tests (ament_flake8/pep257).

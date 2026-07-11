@@ -399,8 +399,8 @@ class UM790DashboardNode(Node):
 
             new_items = current_frame_objects - _last_known_objects
             lost_items = _last_known_objects - current_frame_objects
-            for item in new_items: self.get_logger().info(f"[LOG] Object Entered -> {item.upper()}")
-            for item in lost_items: self.get_logger().info(f"[LOG] Object Exited -> {item.upper()}")
+            # for item in new_items: self.get_logger().info(f"[LOG] Object Entered -> {item.upper()}")
+            # for item in lost_items: self.get_logger().info(f"[LOG] Object Exited -> {item.upper()}")
             _last_known_objects = current_frame_objects
 
             with self.data_lock:
